@@ -62,23 +62,47 @@ def extract_initial_frames(
     duration_s: float,
     config: FramesConfig,
 ) -> list[FrameArtifact]:
+    return extract_sampled_frames(
+        video_path,
+        output_dir,
+        start_s=0,
+        end_s=duration_s,
+        fps=1 / config.initial_interval_s,
+        resolution=config.initial_resolution,
+        jpeg_quality=config.jpeg_quality,
+    )
+
+
+def extract_sampled_frames(
+    video_path: Path,
+    output_dir: Path,
+    *,
+    start_s: float,
+    end_s: float,
+    fps: float,
+    resolution: int,
+    jpeg_quality: int,
+) -> list[FrameArtifact]:
     output_dir.mkdir(parents=True, exist_ok=True)
     for old_frame in output_dir.glob("frame-*.jpg"):
         old_frame.unlink()
-    scale = (
-        f"scale=w='if(gte(iw,ih),{config.initial_resolution},-2)':"
-        f"h='if(gte(iw,ih),-2,{config.initial_resolution})'"
-    )
+    scale = f"scale=w='if(gte(iw,ih),{resolution},-2)':h='if(gte(iw,ih),-2,{resolution})'"
     command = [
         require_binary("ffmpeg"),
         "-hide_banner",
         "-loglevel",
         "error",
         "-y",
+        "-ss",
+        f"{start_s:.3f}",
         "-i",
         str(video_path),
+        "-t",
+        f"{end_s - start_s:.3f}",
         "-vf",
-        f"fps=fps=1/{config.initial_interval_s}:start_time=0,{scale}",
+        f"fps=fps={fps}:start_time=0,{scale}",
+        "-pix_fmt",
+        "yuvj420p",
         "-q:v",
         "3",
         str(output_dir / "frame-%06d.jpg"),
@@ -90,8 +114,8 @@ def extract_initial_frames(
     paths = sorted(output_dir.glob("frame-*.jpg"))
     artifacts: list[FrameArtifact] = []
     for index, path in enumerate(paths):
-        timestamp_s = min(index * config.initial_interval_s, duration_s)
-        _burn_in(path, timestamp_s, config.jpeg_quality)
+        timestamp_s = min(start_s + index / fps, end_s)
+        _burn_in(path, timestamp_s, jpeg_quality)
         artifacts.append(FrameArtifact(path=str(path), timestamp_s=timestamp_s))
     return artifacts
 

@@ -22,11 +22,17 @@ class VideoCache:
         self.index_text_path = self.root / "index.txt"
         self.frames_dir = self.root / "frames"
         self.montages_dir = self.root / "montages"
+        self.tool_frames_dir = self.root / "tool_frames"
+        self.advanced_asr_dir = self.root / "advanced_asr"
+        self.reports_dir = self.root / "reports"
         self.trace_path = self.root / "trace.jsonl"
 
     def ensure(self) -> None:
         self.frames_dir.mkdir(parents=True, exist_ok=True)
         self.montages_dir.mkdir(parents=True, exist_ok=True)
+        self.tool_frames_dir.mkdir(parents=True, exist_ok=True)
+        self.advanced_asr_dir.mkdir(parents=True, exist_ok=True)
+        self.reports_dir.mkdir(parents=True, exist_ok=True)
 
     def write_json(self, path: Path, value: Any) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

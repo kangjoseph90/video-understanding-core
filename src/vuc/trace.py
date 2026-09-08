@@ -20,6 +20,7 @@ class TraceWriter:
         arguments: dict[str, Any],
         result_summary: dict[str, Any],
         duration_ms: int,
+        token_usage: dict[str, Any] | None = None,
     ) -> None:
         record = {
             "timestamp": datetime.now(UTC).isoformat(),
@@ -27,7 +28,7 @@ class TraceWriter:
             "event": event,
             "arguments": arguments,
             "result_summary": result_summary,
-            "token_usage": None,
+            "token_usage": token_usage,
             "duration_ms": duration_ms,
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)

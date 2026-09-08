@@ -12,6 +12,9 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.indexer.device == "cpu"
     assert config.indexer.hub == "hf"
     assert config.frames.montage_shape == (3, 3)
+    assert config.advanced_asr.provider == "local"
+    assert config.advanced_asr.local.max_segment_s == 180
+    assert config.agent.verify_overlap == 0.8
 
 
 def test_load_config_reads_dotenv_without_overriding_process_env(

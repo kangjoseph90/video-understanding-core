@@ -56,12 +56,76 @@ class FramesConfig:
 
 
 @dataclass(frozen=True)
+class VisionLLMConfig:
+    base_url_env: str
+    model_env: str
+    api_key_env: str
+    max_images_per_request: int
+    max_image_resolution: int
+    timeout_s: float
+    max_retries: int
+    max_output_tokens: int
+
+
+@dataclass(frozen=True)
+class LocalASRConfig:
+    backend: str
+    model: str
+    device: str
+    compute_type: str
+    cpu_threads: int
+    max_segment_s: float
+
+
+@dataclass(frozen=True)
+class CloudASRConfig:
+    base_url_env: str
+    model_env: str
+    api_key_env: str
+    timeout_s: float
+    max_retries: int
+    concurrency: int
+    max_segment_s: float
+    cost_per_minute_usd: float
+
+
+@dataclass(frozen=True)
+class AdvancedASRConfig:
+    provider: str
+    local: LocalASRConfig
+    cloud: CloudASRConfig
+
+
+@dataclass(frozen=True)
+class AgentConfig:
+    query: str
+    max_tool_calls: int
+    max_input_tokens: int
+    wall_clock_s: float
+    calibration_enabled: bool
+    calibration_segments: int
+    calibration_segment_s: float
+    verify_overlap: float
+
+
+@dataclass(frozen=True)
+class ViewFramesConfig:
+    allowed_fps: tuple[float, ...]
+    allowed_resolutions: tuple[int, ...]
+    max_frames_per_call: int
+
+
+@dataclass(frozen=True)
 class AppConfig:
     path: Path
     cache: CacheConfig
     video: VideoConfig
     indexer: IndexerConfig
     frames: FramesConfig
+    vision_llm: VisionLLMConfig
+    advanced_asr: AdvancedASRConfig
+    agent: AgentConfig
+    view_frames: ViewFramesConfig
     raw: dict[str, Any]
 
 
@@ -89,6 +153,14 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
     video = _section(data, "video")
     indexer = _section(data, "indexer")
     frames = _section(data, "frames")
+    vision_llm = _section(data, "vision_llm")
+    asr = _section(data, "asr")
+    advanced_asr = _section(asr, "advanced")
+    local_asr = _section(advanced_asr, "local")
+    cloud_asr = _section(advanced_asr, "cloud")
+    agent = _section(data, "agent")
+    tools = _section(data, "tools")
+    view_frames = _section(tools, "view_frames")
     cache_dir = Path(str(cache["directory"])).expanduser()
     if not cache_dir.is_absolute():
         cache_dir = (config_path.parent / cache_dir).resolve()
@@ -124,7 +196,57 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             montage_grid=str(frames["montage_grid"]),
             jpeg_quality=int(frames["jpeg_quality"]),
         ),
+        vision_llm=VisionLLMConfig(
+            base_url_env=str(vision_llm["base_url_env"]),
+            model_env=str(vision_llm["model_env"]),
+            api_key_env=str(vision_llm["api_key_env"]),
+            max_images_per_request=int(vision_llm["max_images_per_request"]),
+            max_image_resolution=int(vision_llm["max_image_resolution"]),
+            timeout_s=float(vision_llm["timeout_s"]),
+            max_retries=int(vision_llm["max_retries"]),
+            max_output_tokens=int(vision_llm["max_output_tokens"]),
+        ),
+        advanced_asr=AdvancedASRConfig(
+            provider=str(advanced_asr["provider"]),
+            local=LocalASRConfig(
+                backend=str(local_asr["backend"]),
+                model=str(local_asr["model"]),
+                device=str(local_asr["device"]),
+                compute_type=str(local_asr["compute_type"]),
+                cpu_threads=int(local_asr["cpu_threads"]),
+                max_segment_s=float(local_asr["max_segment_s"]),
+            ),
+            cloud=CloudASRConfig(
+                base_url_env=str(cloud_asr["base_url_env"]),
+                model_env=str(cloud_asr["model_env"]),
+                api_key_env=str(cloud_asr["api_key_env"]),
+                timeout_s=float(cloud_asr["timeout_s"]),
+                max_retries=int(cloud_asr["max_retries"]),
+                concurrency=int(cloud_asr["concurrency"]),
+                max_segment_s=float(cloud_asr["max_segment_s"]),
+                cost_per_minute_usd=float(cloud_asr["cost_per_minute_usd"]),
+            ),
+        ),
+        agent=AgentConfig(
+            query=str(agent["query"]),
+            max_tool_calls=int(agent["max_tool_calls"]),
+            max_input_tokens=int(agent["max_input_tokens"]),
+            wall_clock_s=float(agent["wall_clock_s"]),
+            calibration_enabled=bool(agent["calibration_enabled"]),
+            calibration_segments=int(agent["calibration_segments"]),
+            calibration_segment_s=float(agent["calibration_segment_s"]),
+            verify_overlap=float(agent["verify_overlap"]),
+        ),
+        view_frames=ViewFramesConfig(
+            allowed_fps=tuple(float(value) for value in view_frames["allowed_fps"]),
+            allowed_resolutions=tuple(int(value) for value in view_frames["allowed_resolutions"]),
+            max_frames_per_call=int(view_frames["max_frames_per_call"]),
+        ),
         raw=data,
     )
     _ = result.frames.montage_shape
+    if result.advanced_asr.provider not in {"local", "cloud"}:
+        raise ValueError("asr.advanced.provider must be local or cloud")
+    if not 0 <= result.agent.verify_overlap <= 1:
+        raise ValueError("agent.verify_overlap must be between 0 and 1")
     return result

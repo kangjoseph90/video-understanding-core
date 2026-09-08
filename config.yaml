@@ -33,16 +33,20 @@ vision_llm:
   api_key_env: VLM_API_KEY
   max_images_per_request: 16
   max_image_resolution: 768
+  timeout_s: 180
+  max_retries: 2
+  max_output_tokens: 8192
 
 asr:
   advanced:
     provider: local
-    max_segment_s: 600
     local:
       backend: faster-whisper
       model: large-v3-turbo
       device: cpu
       compute_type: int8
+      cpu_threads: 8
+      max_segment_s: 180
     cloud:
       base_url_env: VUC_ASR_BASE_URL
       model_env: VUC_ASR_MODEL
@@ -50,6 +54,7 @@ asr:
       timeout_s: 120
       max_retries: 3
       concurrency: 3
+      max_segment_s: 600
       cost_per_minute_usd: 0.0
 
 agent:
@@ -60,6 +65,7 @@ agent:
   calibration_enabled: true
   calibration_segments: 3
   calibration_segment_s: 30
+  verify_overlap: 0.8
 
 tools:
   view_frames:

@@ -58,3 +58,37 @@ def extract_audio(video_path: Path, audio_path: Path) -> None:
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode != 0:
         raise MediaError(f"audio extraction failed: {completed.stderr.strip()}")
+
+
+def extract_audio_segment(
+    input_path: Path,
+    output_path: Path,
+    *,
+    start_s: float,
+    end_s: float,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        require_binary("ffmpeg"),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        f"{start_s:.3f}",
+        "-i",
+        str(input_path),
+        "-t",
+        f"{end_s - start_s:.3f}",
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-c:a",
+        "pcm_s16le",
+        str(output_path),
+    ]
+    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise MediaError(f"segment audio extraction failed: {completed.stderr.strip()}")
