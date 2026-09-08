@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from dotenv import load_dotenv
 
 
 @dataclass(frozen=True)
@@ -71,8 +72,14 @@ def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
     return value
 
 
-def load_config(path: str | Path) -> AppConfig:
+def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> AppConfig:
     config_path = Path(path).expanduser().resolve()
+    env_path = (
+        Path(dotenv_path).expanduser().resolve()
+        if dotenv_path is not None
+        else config_path.parent / ".env"
+    )
+    load_dotenv(env_path, override=False)
     with config_path.open(encoding="utf-8") as handle:
         data = yaml.safe_load(handle)
     if not isinstance(data, dict):

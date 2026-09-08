@@ -36,4 +36,3 @@ class VideoCache:
             encoding="utf-8",
         )
         temporary.replace(path)
-

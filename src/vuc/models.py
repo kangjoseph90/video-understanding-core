@@ -10,14 +10,13 @@ class Segment:
     end: float
     text: str
     language: str
-    emotions: tuple[str, ...] = ()
-    audio_events: tuple[str, ...] = ()
+    emotion: str | None = None
+    events: tuple[str, ...] = ()
     raw_text: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         result = asdict(self)
-        result["emotions"] = list(self.emotions)
-        result["audio_events"] = list(self.audio_events)
+        result["events"] = list(self.events)
         return result
 
 
@@ -61,4 +60,3 @@ class VideoIndex:
             "created_at": self.created_at,
             "indexer": self.indexer,
         }
-

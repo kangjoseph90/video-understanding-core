@@ -28,7 +28,7 @@ def _validate_video(path: Path, config: AppConfig) -> Path:
 def _text_index(segments: list[Segment]) -> str:
     lines = []
     for segment in segments:
-        tags = [segment.language, *segment.emotions, *segment.audio_events]
+        tags = [segment.language, segment.emotion or "", *segment.events]
         tag_text = " ".join(f"<{tag}>" for tag in tags if tag and tag != "unknown")
         lines.append(
             f"[{format_timestamp(segment.start)}–{format_timestamp(segment.end)}] "
@@ -46,8 +46,8 @@ def _load_cached(path: Path) -> VideoIndex:
             end=item["end"],
             text=item["text"],
             language=item["language"],
-            emotions=tuple(item.get("emotions", [])),
-            audio_events=tuple(item.get("audio_events", [])),
+            emotion=item.get("emotion") or next(iter(item.get("emotions", [])), None),
+            events=tuple(item.get("events", item.get("audio_events", []))),
             raw_text=item.get("raw_text", ""),
         )
         for item in data["segments"]

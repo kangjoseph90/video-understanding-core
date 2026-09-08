@@ -19,18 +19,18 @@ class Transcriber(Protocol):
     def transcribe(self, audio_path: Path) -> list[Segment]: ...
 
 
-def parse_rich_text(raw_text: str) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
+def parse_rich_text(raw_text: str) -> tuple[str, str, str | None, tuple[str, ...]]:
     tags = tuple(match.group(1) for match in TAG_PATTERN.finditer(raw_text))
     normalized = tuple(tag.lower() for tag in tags)
     language = next((tag for tag in normalized if tag in LANGUAGES), "unknown")
-    emotions = tuple(tag for tag in normalized if tag in EMOTIONS)
+    emotion = next((tag for tag in normalized if tag in EMOTIONS), None)
     audio_events = tuple(
         original
         for original, lower in zip(tags, normalized, strict=True)
         if lower not in NON_EVENTS
     )
     text = TAG_PATTERN.sub("", raw_text).strip()
-    return text, language, emotions, audio_events
+    return text, language, emotion, audio_events
 
 
 def _as_items(result: Any) -> Iterable[dict[str, Any]]:
@@ -63,30 +63,30 @@ def normalize_funasr_result(result: Any, duration_s: float) -> list[Segment]:
                     continue
                 rich_text = rich_segments[index] if index < len(rich_segments) else ""
                 raw = str(rich_text or sentence.get("raw_text") or sentence.get("text") or "")
-                text, language, emotions, events = parse_rich_text(raw)
+                text, language, emotion, events = parse_rich_text(raw)
                 segments.append(
                     Segment(
                         start=float(sentence.get("start", 0)) / 1000,
                         end=float(sentence.get("end", 0)) / 1000,
                         text=text,
                         language=language,
-                        emotions=emotions,
-                        audio_events=events,
+                        emotion=emotion,
+                        events=events,
                         raw_text=raw,
                     )
                 )
             continue
 
         raw = str(item.get("raw_text") or item.get("text") or "")
-        text, language, emotions, events = parse_rich_text(raw)
+        text, language, emotion, events = parse_rich_text(raw)
         segments.append(
             Segment(
                 start=0.0,
                 end=duration_s,
                 text=text,
                 language=language,
-                emotions=emotions,
-                audio_events=events,
+                emotion=emotion,
+                events=events,
                 raw_text=raw,
             )
         )

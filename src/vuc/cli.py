@@ -26,9 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "index":
             config = load_config(args.config)
-            index, cache, cache_hit = index_video(
-                args.video, config, force=args.force
-            )
+            index, cache, cache_hit = index_video(args.video, config, force=args.force)
             print(
                 json.dumps(
                     {
@@ -55,4 +53,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

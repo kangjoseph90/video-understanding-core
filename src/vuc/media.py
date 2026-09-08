@@ -58,4 +58,3 @@ def extract_audio(video_path: Path, audio_path: Path) -> None:
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode != 0:
         raise MediaError(f"audio extraction failed: {completed.stderr.strip()}")
-

@@ -28,21 +28,29 @@ frames:
   jpeg_quality: 88
 
 vision_llm:
-  base_url_env: VUC_VISION_BASE_URL
-  model_env: VUC_VISION_MODEL
-  api_key_env: VUC_VISION_API_KEY
+  base_url_env: VLM_BASE_URL
+  model_env: VLM_MODEL
+  api_key_env: VLM_API_KEY
   max_images_per_request: 16
   max_image_resolution: 768
 
-cloud_asr:
-  base_url_env: VUC_ASR_BASE_URL
-  model_env: VUC_ASR_MODEL
-  api_key_env: VUC_ASR_API_KEY
-  timeout_s: 120
-  max_retries: 3
-  max_segment_s: 600
-  concurrency: 3
-  cost_per_minute_usd: 0.0
+asr:
+  advanced:
+    provider: local
+    max_segment_s: 600
+    local:
+      backend: faster-whisper
+      model: large-v3-turbo
+      device: cpu
+      compute_type: int8
+    cloud:
+      base_url_env: VUC_ASR_BASE_URL
+      model_env: VUC_ASR_MODEL
+      api_key_env: VUC_ASR_API_KEY
+      timeout_s: 120
+      max_retries: 3
+      concurrency: 3
+      cost_per_minute_usd: 0.0
 
 agent:
   query: "영상의 핵심 내용을 근거와 함께 요약 보고서로 작성해 주세요."
@@ -67,3 +75,6 @@ benchmark:
   judge_base_url_env: VUC_JUDGE_BASE_URL
   judge_model_env: VUC_JUDGE_MODEL
   judge_api_key_env: VUC_JUDGE_API_KEY
+  cost_accounting:
+    local_asr_metric: processing_seconds
+    cloud_asr_metric: usd

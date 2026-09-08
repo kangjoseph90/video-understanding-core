@@ -21,8 +21,8 @@ class StubTranscriber:
                 end=3,
                 text="synthetic smoke test",
                 language="en",
-                emotions=("neutral",),
-                audio_events=("Speech",),
+                emotion="neutral",
+                events=("Speech",),
                 raw_text="<|en|><|NEUTRAL|><|Speech|>synthetic smoke test",
             )
         ]
@@ -57,9 +57,11 @@ def test_index_video_creates_cache_frames_montage_and_trace(tmp_path: Path) -> N
         check=True,
     )
     source_config = Path(__file__).parents[1] / "config.yaml"
-    config_data = source_config.read_text(encoding="utf-8").replace(
-        "directory: .vuc-cache", f"directory: {tmp_path / 'cache'}"
-    ).replace("initial_interval_s: 30", "initial_interval_s: 1")
+    config_data = (
+        source_config.read_text(encoding="utf-8")
+        .replace("directory: .vuc-cache", f"directory: {tmp_path / 'cache'}")
+        .replace("initial_interval_s: 30", "initial_interval_s: 1")
+    )
     config_path = tmp_path / "config.yaml"
     config_path.write_text(config_data, encoding="utf-8")
     config = load_config(config_path)
@@ -83,4 +85,3 @@ def test_index_video_creates_cache_frames_montage_and_trace(tmp_path: Path) -> N
     cached, _, second_cache_hit = index_video(video, config, transcriber=StubTranscriber())
     assert second_cache_hit
     assert cached.video.sha256 == index.video.sha256
-
