@@ -36,6 +36,8 @@ vision_llm:
   timeout_s: 180
   max_retries: 2
   max_output_tokens: 8192
+  input_cost_per_million_usd: 0.0
+  output_cost_per_million_usd: 0.0
 
 asr:
   advanced:

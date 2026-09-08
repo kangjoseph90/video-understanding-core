@@ -58,7 +58,18 @@ class StubLLM:
                     "summary": "A generated sample.",
                     "start_s": 0,
                     "end_s": 4,
-                    "citations": [{"claim": "Pattern", "start_s": 0, "end_s": 4}],
+                    "citations": [
+                        {
+                            "claim": "Pattern",
+                            "start_s": 0,
+                            "end_s": 4,
+                            "evidence_span": {
+                                "start_s": 0,
+                                "end_s": 4,
+                                "source": "transcribe_segment",
+                            },
+                        }
+                    ],
                 }
             ],
             "key_moments": [{"title": "Start", "summary": "Pattern", "timestamp_s": 0}],
@@ -118,6 +129,10 @@ def test_run_short_video_baseline_smoke(tmp_path: Path) -> None:
     )
 
     assert report["meta"]["route"] == "baseline"
+    assert report["meta"]["cumulative_input_tokens"] == 100
+    assert report["meta"]["output_tokens"] == 50
+    assert report["meta"]["vlm_cost_usd"] is None
+    assert report["meta"]["coverage_ratio"] == 1
     assert report["sections"][0]["citations"][0]["verified"] is True
     assert markdown_path.exists()
     assert json_path.exists()

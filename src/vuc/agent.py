@@ -10,8 +10,16 @@ from typing import Any
 from vuc.cache import VideoCache
 from vuc.config import AppConfig
 from vuc.frames import format_timestamp
-from vuc.llm import ChatCompletionsClient, ChatResult, image_content
+from vuc.llm import (
+    ChatCompletionsClient,
+    ChatResult,
+    estimate_vlm_cost_usd,
+    image_content,
+    input_token_count,
+    output_token_count,
+)
 from vuc.models import Segment, VideoIndex
+from vuc.report import parse_report_json, report_time_coverage
 from vuc.tools import ToolExecution, ToolService
 from vuc.trace import TraceWriter
 
@@ -23,13 +31,20 @@ Return only one JSON object with this shape:
   "sections": [
     {
       "title": "...", "summary": "...", "start_s": 0, "end_s": 30,
-      "citations": [{"claim": "...", "start_s": 0, "end_s": 10}]
+      "citations": [{
+        "claim": "...", "start_s": 0, "end_s": 10,
+        "evidence_span": {
+          "start_s": 0, "end_s": 10,
+          "source": "transcribe_segment"
+        }
+      }]
     }
   ],
   "key_moments": [{"title": "...", "summary": "...", "timestamp_s": 0}],
   "unverified_claims": ["..."]
 }
 Do not emit a verified field; it is computed from the trace after your response.
+evidence_span.source must be either view_frames or transcribe_segment.
 Keep the complete JSON concise enough to fit within the output limit.
 """.strip()
 
@@ -43,6 +58,7 @@ class AgentBudget:
     excluded_asr_s: float = 0.0
     tool_calls: int = 0
     input_tokens: int = 0
+    output_tokens: int = 0
 
     @classmethod
     def start(cls, config: AppConfig) -> AgentBudget:
@@ -105,7 +121,9 @@ def system_prompt(index_reliability: float | None) -> str:
 - 제공된 SenseVoice 인덱스는 저품질 초안이며 언어에 따라 오인식 정도가 크게 다르다.
 - 보고서에 인용하거나 핵심 주장의 근거로 삼는 구간은 transcribe_segment로 검증해야 한다.
 - 프레임에 보이는 텍스트(슬라이드, 자막, 화면 텍스트)는 ASR보다 우선 신뢰한다.
+- 특정 구간에 대한 시각적 주장은 반드시 그 구간을 view_frames로 조회한 프레임으로만 뒷받침한다.
 - 모든 인용은 [mm:ss] 또는 [mm:ss–mm:ss] 형식을 사용한다.
+- 각 citation의 evidence_span에는 실제 근거 구간과 사용한 도구 source를 기록한다.
 
 이 영상에서 캘리브레이션한 인덱스 신뢰도: {reliability}
 도구를 사용해 중요한 주장과 장면을 확인한 뒤 보고서를 완성하라.
@@ -202,6 +220,7 @@ def run_agent_loop(
     ]
     final_text = ""
     stop_reason: str | None = None
+    self_check_done = False
 
     while True:
         reason = budget.reason()
@@ -223,10 +242,54 @@ def run_agent_loop(
             tool_choice=None if finalizing else "auto",
         )
         _record_llm(trace, result, finalizing=finalizing)
-        budget.input_tokens += int(result.usage.get("prompt_tokens", 0))
+        budget.input_tokens += input_token_count(result.usage)
+        budget.output_tokens += output_token_count(result.usage)
         tool_calls = result.message.get("tool_calls") or []
         if finalizing or not tool_calls:
-            final_text = str(result.message.get("content") or "")
+            candidate = str(result.message.get("content") or "")
+            if not self_check_done:
+                self_check_done = True
+                try:
+                    candidate_report = parse_report_json(candidate)
+                except (json.JSONDecodeError, ValueError):
+                    coverage_ratio = 0.0
+                    uncovered = [(0.0, index.video.duration_s)]
+                else:
+                    coverage_ratio, uncovered = report_time_coverage(
+                        candidate_report, index.video.duration_s
+                    )
+                trace.write(
+                    step="agent",
+                    event="coverage_self_check",
+                    arguments={"required_ratio": 0.9},
+                    result_summary={
+                        "coverage_ratio": round(coverage_ratio, 4),
+                        "uncovered_spans": uncovered,
+                    },
+                    duration_ms=0,
+                )
+                if not finalizing and coverage_ratio < 0.9:
+                    gaps = ", ".join(
+                        f"[{format_timestamp(start_s)}–{format_timestamp(end_s)}]"
+                        for start_s, end_s in uncovered
+                    )
+                    messages.extend(
+                        [
+                            {"role": "assistant", "content": candidate},
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"종료 전 자기점검 결과 섹션 시간 합집합이 영상의 "
+                                    f"{coverage_ratio:.1%}만 다룬다. 공백 구간은 {gaps}이다. "
+                                    "필요하면 추가 도구로 조회하고, 조회하지 않는 공백은 "
+                                    "unverified_claims에 명시한 뒤 완전한 최종 JSON을 다시 "
+                                    "작성하라."
+                                ),
+                            },
+                        ]
+                    )
+                    continue
+            final_text = candidate
             break
 
         assistant_message = {
@@ -277,9 +340,14 @@ def run_agent_loop(
             content.extend(image_content(path) for path in returned_images)
             messages.append({"role": "user", "content": content})
 
+    vlm_cost_usd = estimate_vlm_cost_usd(
+        config.vision_llm, budget.input_tokens, budget.output_tokens
+    )
     stats = {
         "tool_calls": budget.tool_calls,
-        "input_tokens": budget.input_tokens,
+        "cumulative_input_tokens": budget.input_tokens,
+        "output_tokens": budget.output_tokens,
+        "vlm_cost_usd": None if vlm_cost_usd is None else round(vlm_cost_usd, 6),
         "agent_wall_clock_s": round(budget.effective_elapsed_s, 3),
         "asr_wall_clock_s": round(budget.excluded_asr_s, 3),
         "asr_processing_s": round(service.asr_processing_s, 3),
@@ -288,5 +356,6 @@ def run_agent_loop(
         "index_reliability": reliability,
         "calibration": calibration_results,
         "budget_stop_reason": stop_reason,
+        "coverage_self_check": self_check_done,
     }
     return final_text, stats

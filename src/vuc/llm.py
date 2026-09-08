@@ -24,6 +24,25 @@ class ChatResult:
     latency_s: float
 
 
+def input_token_count(usage: dict[str, Any]) -> int:
+    return int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0)
+
+
+def output_token_count(usage: dict[str, Any]) -> int:
+    return int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0)
+
+
+def estimate_vlm_cost_usd(
+    config: VisionLLMConfig, input_tokens: int, output_tokens: int
+) -> float | None:
+    if config.input_cost_per_million_usd <= 0 and config.output_cost_per_million_usd <= 0:
+        return None
+    return (
+        input_tokens * config.input_cost_per_million_usd
+        + output_tokens * config.output_cost_per_million_usd
+    ) / 1_000_000
+
+
 def image_content(path: Path) -> dict[str, Any]:
     mime_type = mimetypes.guess_type(path.name)[0] or "image/jpeg"
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")

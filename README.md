@@ -72,7 +72,7 @@ uv run vuc run sample.webm --config config.yaml --force-index
 ## Configuration
 
 모델 엔드포인트, 샘플링, 이미지, 도구, 에이전트 예산과 벤치마크 judge 설정을 모두
-단일 [`config.yaml`](config.yaml)에 둡니다. 아직 구현되지 않은 M2/M3 설정도 같은 스키마에
+단일 [`config.yaml`](config.yaml)에 둡니다. 아직 구현되지 않은 M3 설정도 같은 스키마에
 미리 고정해 이후 별도 설정 파일이 생기지 않게 했습니다.
 
 ## M2 behavior
@@ -81,7 +81,9 @@ uv run vuc run sample.webm --config config.yaml --force-index
 - baseline은 고급 ASR을 제공자 상한 이하로 나눠 전체 전사하고 15초/512px 프레임과 함께
   한 번의 VLM 호출로 보고서를 만듭니다.
 - agentic 경로는 영상의 앞·중간·뒤 시간층에서 무작위 30초 구간 3개를 고급 ASR로 비교해
-  인덱스 신뢰도를 계산합니다. 영상 해시를 seed로 사용하므로 표본은 재현 가능합니다.
+  인덱스 신뢰도를 계산합니다. 인덱스 세그먼트가 창 경계를 넘으면 시간 비율로 텍스트를
+  절단하고, 양쪽 텍스트에서 공백·문장부호를 제거한 CER의 `1-CER`를 사용합니다. 영상 해시를
+  seed로 사용하므로 표본은 재현 가능합니다.
 - 로컬 `transcribe_segment` 상한은 180초, cloud 상한은 600초입니다. ASR wall time은 에이전트
   600초 wall-clock 예산에서 제외하고 `asr_wall_clock_s`로 따로 기록합니다.
 - 제공하는 도구는 정확히 `view_frames(start_s, end_s, fps, resolution)`,
@@ -89,10 +91,19 @@ uv run vuc run sample.webm --config config.yaml --force-index
   인덱스가 초기 20k 토큰 예산을 넘을 때만 모델에 노출됩니다.
 - 고급 ASR 결과에는 `notes: str | null`이 있으며 local은 `null`입니다. M3의 Gemini 제공자가
   비언어 정보를 전달할 수 있도록 인터페이스를 미리 확보했습니다.
-- 인용 구간의 80% 이상이 실제 `view_frames`/`transcribe_segment` 조회 구간 합집합에 포함될
-  때만 `verified=true`입니다. 모델이 반환한 `verified` 값은 사용하지 않습니다.
+- 각 citation은 `evidence_span(start_s, end_s, source)`을 가집니다. claim 구간의 80% 이상이
+  전체 조회 구간 합집합에 포함되고, claim과 evidence 구간이 80% 이상 겹치며, evidence 구간도
+  선언한 source(`view_frames` 또는 `transcribe_segment`)로 80% 이상 실제 조회된 경우에만
+  `verified=true`입니다. 모델이 반환한 `verified` 값은 사용하지 않습니다.
+- 특정 구간의 시각적 주장은 같은 구간의 `view_frames` 근거만 사용하도록 시스템 프롬프트에
+  강제합니다.
 - 에이전트 예산은 도구 12회, 누적 입력 200k 토큰, ASR 제외 wall-clock 600초입니다. 한도에
   도달하면 도구를 중단하고 현재 근거만으로 최종 보고서를 요청합니다.
+- 종료 전 섹션 시간 합집합을 계산합니다. 영상의 90% 미만이면 공백 구간을 모델에 전달해
+  추가 조회 또는 명시를 요구하며, 최종 `meta.coverage_ratio`와 `uncovered_spans`에도 기록합니다.
+- `meta.cumulative_input_tokens`는 모든 VLM 왕복의 입력 토큰 누적치이고 `output_tokens`도 모든
+  왕복의 출력 누적치입니다. `vlm_cost_usd`는 config의 백만 토큰당 입출력 단가로 계산하며,
+  두 단가가 모두 0이면 비용 미설정을 뜻하는 `null`입니다.
 
 ## Assumptions
 
@@ -126,6 +137,7 @@ uv run vuc run sample.webm --config config.yaml --force-index
 | video | wall time | realtime multiple | peak RSS | segments | mean segment |
 |---:|---:|---:|---:|---:|---:|
 | 1,800.0s | 199.59s | 9.02× | 3,106.1MB (2,962.2MiB) | 125 | 14.40s |
+| 1,800.0s, suffix fix | 197.59s | 9.11× | 3,128.1MB (2,983.2MiB) | 125 | 14.40s |
 
 - 프레임 추출과 몽타주 생성은 60장/7장으로 약 1초였으며, 나머지 시간 대부분은 CPU
   SenseVoice 추론에 사용됐습니다.
@@ -136,6 +148,26 @@ uv run vuc run sample.webm --config config.yaml --force-index
   정밀 타임스탬프는 제공하지 않습니다.
 - 첫 3×3 몽타주를 원본 크기로 열어 `00:00`부터 `04:00`까지 30초 간격 burn-in을 육안
   확인했습니다. 검은 배경의 흰 글자가 각 셀 좌하단에서 선명해 기본 폰트 크기를 유지합니다.
+
+### Index suffix duplication and calibration
+
+`치는는`, `중에서에서`, `걸어주세요세요`를 조사한 결과 125개 VAD 세그먼트 사이 시간 겹침은
+0건이었고, 각각 20·25·13회가 SenseVoice의 개별 `raw_text` 안에 이미 존재했습니다. 따라서
+VAD overlap이나 세그먼트 merge 경계 중복이 아니라 동일 음원을 반복 입력했을 때 재현되는
+SenseVoice 오류입니다. `raw_text`는 증거로 보존하고, 정제 `text`에만 보수적인 한국어
+조사·어미 suffix 중복 제거를 적용했습니다. 재인덱싱 후 세 표현은 정제 `text`에서 모두
+0건입니다.
+
+동일한 층화 30초 창과 기존 faster-whisper 결과를 사용한 신뢰도 변화는 다음과 같습니다.
+아래 전후 비교는 모두 새 CER 방식이므로 후처리 효과만 비교합니다.
+
+| stage | window similarities | mean index reliability |
+|---|---|---:|
+| fix 전, 새 CER로 재계산 | 0.708955 / 0.812500 / 0.798507 | 0.773321 |
+| fix 후 재인덱싱 | 0.708955 / 0.843750 / 0.828358 | 0.793688 |
+
+신뢰도는 `+0.020367`(약 2.04%p) 상승했습니다. 기존 README의 0.739는 창과 겹치는 세그먼트
+전체를 넣은 `SequenceMatcher` 값이라 새 수치와 직접 비교하지 않습니다.
 
 ### Vision LLM pre-spike
 
@@ -165,8 +197,9 @@ uv run vuc run sample.webm --config config.yaml --force-index
 
 실제 55.7초 영상의 baseline 경로와 반복 생성한 30분 영상의 agentic 경로를
 `glm-5.3-flash` 및 로컬 faster-whisper `large-v3-turbo` CPU int8로 실행했습니다.
+아래 표는 evidence-span과 CER 보정 전의 원래 M2 실행 기록입니다.
 
-| route | e2e | agent wall (ASR 제외) | ASR wall | tool calls | input tokens | citations |
+| route | e2e | agent wall (ASR 제외) | ASR wall | tool calls | cumulative input tokens | citations |
 |---|---:|---:|---:|---:|---:|---:|
 | baseline, 55.7s | 134.7s | 52.2s | 67.7s | 0 | 2,538 | 5/6 verified |
 | agentic, 30m | 186.6s | 83.4s | 103.1s | 8 | 80,348 | 9/9 verified |
@@ -176,6 +209,16 @@ baseline의 미검증 인용 1개는 모델이 영상 길이 55.7초를 넘어 `
 0.739를 얻었고, 프레임 수 상한 오류에 대해 구간을 줄여 재호출한 뒤 완전한 JSON 보고서를
 생성했습니다. 첫 agentic 시도에서는 4,096 출력 토큰에서 JSON이 잘려 기본 상한을 8,192로
 조정했으며 재실행으로 해결됐습니다.
+
+보고서의 이름 `강요섭`은 파일명에서 가져온 값이 아닙니다. baseline의 0.000–55.706초 및
+agentic의 0–60초 faster-whisper `large-v3-turbo` 전사에 실제로 `강요섭`이 있었고, VLM에는
+원본 파일 경로를 보내지 않았습니다. SenseVoice 초안은 `각요셉`, 파일명은 `강요셉`이므로
+현재 보고서 표기는 고급 ASR 근거에서 온 것입니다. 화면 텍스트 교차검증은 없어 보고서도
+정확한 한글 표기를 미검증 항목으로 남겼습니다.
+
+CER/evidence-span 수정 후 30분 보고서 재생성을 두 차례 시도했지만 VLM 제공자가 첫 응답 전에
+HTTP 429를 반환했습니다. 따라서 디스크의 기존 30분 보고서는 위 표의 M2 원본이며 새 스키마로
+덮어쓰지 않았습니다. 새 검증·자기점검·메타 경로는 mock VLM/ffmpeg 통합 테스트로 검증했습니다.
 
 ## Benchmark results
 

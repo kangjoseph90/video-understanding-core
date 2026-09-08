@@ -4,9 +4,9 @@ import hashlib
 import json
 import math
 import time
+import unicodedata
 from copy import deepcopy
 from dataclasses import dataclass, replace
-from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -109,8 +109,42 @@ def interval_coverage(
     return min(1.0, overlap / (end_s - start_s))
 
 
-def _compact(text: str) -> str:
-    return "".join(text.lower().split())
+def normalize_for_cer(text: str) -> str:
+    normalized = unicodedata.normalize("NFKC", text).casefold()
+    return "".join(character for character in normalized if character.isalnum())
+
+
+def character_error_rate(reference: str, hypothesis: str) -> float:
+    reference_chars = normalize_for_cer(reference)
+    hypothesis_chars = normalize_for_cer(hypothesis)
+    if not reference_chars:
+        return 0.0 if not hypothesis_chars else 1.0
+    previous = list(range(len(hypothesis_chars) + 1))
+    for row, reference_char in enumerate(reference_chars, start=1):
+        current = [row]
+        for column, hypothesis_char in enumerate(hypothesis_chars, start=1):
+            current.append(
+                min(
+                    current[-1] + 1,
+                    previous[column] + 1,
+                    previous[column - 1] + (reference_char != hypothesis_char),
+                )
+            )
+        previous = current
+    return previous[-1] / len(reference_chars)
+
+
+def _slice_segment_text(segment: Segment, start_s: float, end_s: float) -> str:
+    overlap_start = max(start_s, segment.start)
+    overlap_end = min(end_s, segment.end)
+    if overlap_end <= overlap_start or not segment.text:
+        return ""
+    duration = segment.end - segment.start
+    if duration <= 0:
+        return segment.text
+    start_index = math.floor(len(segment.text) * (overlap_start - segment.start) / duration)
+    end_index = math.ceil(len(segment.text) * (overlap_end - segment.start) / duration)
+    return segment.text[start_index:end_index].strip()
 
 
 def _segment_dict(segment: Segment) -> dict[str, Any]:
@@ -136,6 +170,8 @@ class ToolService:
         self._provider = provider
         self.trace = TraceWriter(cache.trace_path)
         self.verified_intervals: list[tuple[float, float]] = []
+        self.frame_intervals: list[tuple[float, float]] = []
+        self.transcript_intervals: list[tuple[float, float]] = []
         self.asr_processing_s = 0.0
         self.cloud_asr_cost_usd = 0.0
         self.cloud_asr_audio_s = 0.0
@@ -240,6 +276,7 @@ class ToolService:
             data = json.loads(metadata_path.read_text(encoding="utf-8"))
             images = tuple(Path(path) for path in data["image_paths"])
             self.verified_intervals.append((start, end))
+            self.frame_intervals.append((start, end))
             return ToolExecution(data={**data, "cache_hit": True}, image_paths=images)
 
         frames = extract_sampled_frames(
@@ -267,6 +304,7 @@ class ToolService:
         }
         self.cache.write_json(metadata_path, data)
         self.verified_intervals.append((start, end))
+        self.frame_intervals.append((start, end))
         return ToolExecution(data=data, image_paths=images)
 
     def _language_hint(self, start_s: float, end_s: float) -> str | None:
@@ -281,10 +319,20 @@ class ToolService:
 
     def _index_text(self, start_s: float, end_s: float) -> str:
         return " ".join(
-            segment.text
+            text
             for segment in self.index.segments
-            if segment.end > start_s and segment.start < end_s
+            if (text := _slice_segment_text(segment, start_s, end_s))
         )
+
+    def _index_score(self, start_s: float, end_s: float, transcript: str) -> dict[str, Any]:
+        index_text = self._index_text(start_s, end_s)
+        cer = character_error_rate(transcript, index_text)
+        return {
+            "index_text": index_text,
+            "index_cer": round(cer, 6),
+            "index_similarity": round(max(0.0, 1.0 - cer), 6),
+            "index_similarity_metric": "1-CER after NFKC/alphanumeric normalization",
+        }
 
     def transcribe_segment(self, start_s: Any, end_s: Any) -> ToolExecution:
         start, end = self._range(start_s, end_s)
@@ -303,7 +351,10 @@ class ToolService:
         result_path = self.cache.advanced_asr_dir / f"{self._key('asr', arguments)}.json"
         if result_path.exists():
             data = json.loads(result_path.read_text(encoding="utf-8"))
+            data.update(self._index_score(start, end, str(data.get("text") or "")))
+            self.cache.write_json(result_path, data)
             self.verified_intervals.append((start, end))
+            self.transcript_intervals.append((start, end))
             return ToolExecution(data={**data, "cache_hit": True})
 
         audio_path = result_path.with_suffix(".wav")
@@ -322,8 +373,6 @@ class ToolService:
             language_hint=language_hint,
         )
         asr_elapsed = time.monotonic() - wall_started
-        index_text = self._index_text(start, end)
-        similarity = SequenceMatcher(None, _compact(index_text), _compact(result.text)).ratio()
         data = result.to_dict()
         data.update(
             {
@@ -338,13 +387,13 @@ class ToolService:
                     for sentence in result.sentences
                 ],
                 "language_hint": language_hint,
-                "index_text": index_text,
-                "index_similarity": similarity,
+                **self._index_score(start, end, result.text),
                 "cache_hit": False,
             }
         )
         self.cache.write_json(result_path, data)
         self.verified_intervals.append((start, end))
+        self.transcript_intervals.append((start, end))
         self.asr_processing_s += asr_elapsed
         if result.provider == "cloud":
             self.cloud_asr_audio_s += duration
@@ -394,3 +443,12 @@ class ToolService:
 
     def citation_coverage(self, start_s: float, end_s: float) -> float:
         return interval_coverage(start_s, end_s, self.verified_intervals)
+
+    def evidence_coverage(self, start_s: float, end_s: float, source: str) -> float:
+        if source == "view_frames":
+            intervals = self.frame_intervals
+        elif source == "transcribe_segment":
+            intervals = self.transcript_intervals
+        else:
+            return 0.0
+        return interval_coverage(start_s, end_s, intervals)

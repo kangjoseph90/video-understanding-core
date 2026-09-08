@@ -19,7 +19,14 @@ from vuc.cache import VideoCache
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_sampled_frames
 from vuc.indexer import Transcriber
-from vuc.llm import ChatCompletionsClient, ChatResult, image_content
+from vuc.llm import (
+    ChatCompletionsClient,
+    ChatResult,
+    estimate_vlm_cost_usd,
+    image_content,
+    input_token_count,
+    output_token_count,
+)
 from vuc.models import VideoIndex
 from vuc.pipeline import index_video
 from vuc.report import normalize_report, parse_report_json, write_report
@@ -124,9 +131,14 @@ def run_baseline(
         tools=None,
     )
     _record_baseline_llm(TraceWriter(cache.trace_path), result)
+    input_tokens = input_token_count(result.usage)
+    output_tokens = output_token_count(result.usage)
+    vlm_cost_usd = estimate_vlm_cost_usd(config.vision_llm, input_tokens, output_tokens)
     return str(result.message.get("content") or ""), {
         "tool_calls": 0,
-        "input_tokens": int(result.usage.get("prompt_tokens", 0)),
+        "cumulative_input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "vlm_cost_usd": None if vlm_cost_usd is None else round(vlm_cost_usd, 6),
         "agent_wall_clock_s": round(time.monotonic() - started - asr_wall_s, 3),
         "asr_wall_clock_s": round(asr_wall_s, 3),
         "asr_processing_s": round(service.asr_processing_s, 3),
@@ -203,6 +215,7 @@ def run_video(
         report_data = _fallback_report(raw_report, exc)
     meta = {
         "path": str(video_path),
+        "duration_s": index.video.duration_s,
         "route": route,
         "index_cache_hit": index_cache_hit,
         "latency_s": round(time.monotonic() - e2e_started, 3),
@@ -225,9 +238,14 @@ def run_video(
             "markdown": str(markdown_path),
             "json": str(json_path),
             "verified_intervals": service.verified_intervals,
+            "frame_intervals": service.frame_intervals,
+            "transcript_intervals": service.transcript_intervals,
             "budget_stop_reason": stats["budget_stop_reason"],
         },
         duration_ms=round((time.monotonic() - e2e_started) * 1000),
-        token_usage={"input_tokens": stats["input_tokens"]},
+        token_usage={
+            "input_tokens": stats["cumulative_input_tokens"],
+            "output_tokens": stats["output_tokens"],
+        },
     )
     return report, markdown_path, json_path

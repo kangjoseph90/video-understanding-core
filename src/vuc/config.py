@@ -65,6 +65,8 @@ class VisionLLMConfig:
     timeout_s: float
     max_retries: int
     max_output_tokens: int
+    input_cost_per_million_usd: float
+    output_cost_per_million_usd: float
 
 
 @dataclass(frozen=True)
@@ -205,6 +207,8 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             timeout_s=float(vision_llm["timeout_s"]),
             max_retries=int(vision_llm["max_retries"]),
             max_output_tokens=int(vision_llm["max_output_tokens"]),
+            input_cost_per_million_usd=float(vision_llm["input_cost_per_million_usd"]),
+            output_cost_per_million_usd=float(vision_llm["output_cost_per_million_usd"]),
         ),
         advanced_asr=AdvancedASRConfig(
             provider=str(advanced_asr["provider"]),
@@ -249,4 +253,9 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         raise ValueError("asr.advanced.provider must be local or cloud")
     if not 0 <= result.agent.verify_overlap <= 1:
         raise ValueError("agent.verify_overlap must be between 0 and 1")
+    if (
+        result.vision_llm.input_cost_per_million_usd < 0
+        or result.vision_llm.output_cost_per_million_usd < 0
+    ):
+        raise ValueError("vision_llm token costs must not be negative")
     return result
