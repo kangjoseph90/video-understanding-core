@@ -216,9 +216,54 @@ agentic의 0–60초 faster-whisper `large-v3-turbo` 전사에 실제로 `강요
 현재 보고서 표기는 고급 ASR 근거에서 온 것입니다. 화면 텍스트 교차검증은 없어 보고서도
 정확한 한글 표기를 미검증 항목으로 남겼습니다.
 
-CER/evidence-span 수정 후 30분 보고서 재생성을 두 차례 시도했지만 VLM 제공자가 첫 응답 전에
-HTTP 429를 반환했습니다. 따라서 디스크의 기존 30분 보고서는 위 표의 M2 원본이며 새 스키마로
-덮어쓰지 않았습니다. 새 검증·자기점검·메타 경로는 mock VLM/ffmpeg 통합 테스트로 검증했습니다.
+429 한도 초기화 후 CER/evidence-span 수정이 들어간 30분 보고서를 재생성했습니다.
+인덱스와 고급 ASR 결과가 모두 캐시된 warm run이어서 성능 비교용이 아니며, 새 스키마·검증 규칙의
+실제 VLM 통합 확인용입니다.
+
+| e2e | agent wall | ASR wall | tool calls | cumulative input | output | reliability | coverage | citations |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 90.532s | 90.432s | 0.000s (cache) | 3 | 36,780 | 5,464 | 0.793688 | 99.94% | 9/9 verified |
+
+실제 보고서는
+`.vuc-cache/efaf560cc447ef266e1d05ec8468f20f113224a7bef10e950244d20985577cd1/reports/8edb0238bb468f2a/`에,
+전체 trace는 같은 캐시 루트의 `trace.jsonl`에 있습니다. 보고서의 모든 9개 citation에
+`evidence_span`이 있고 새 규칙으로 모두 검증됐으며, 섹션 공백은 17–18초 1개입니다.
+
+### YouTube real-world field eval
+
+2026-09-08–09에 720p YouTube 영상 5개를 로컬 캐시에 받아 기존 `vuc run` 설정 그대로
+실행했습니다. 슬라이드 강의, 요리 튜토리얼, 토킹헤드, 한국어 브이로그, 일본어 브이로그를
+각 1개씩 포함했습니다. 다운로드 선택과 URL은
+[`eval/youtube-field-eval.yaml`](eval/youtube-field-eval.yaml), 기계 판독 결과와 artifact 경로는
+[`eval/youtube-field-eval-results.json`](eval/youtube-field-eval-results.json)에 고정했습니다. 원본 영상과
+캐시 artifact는 `.vuc-cache/`에만 있으며 Git에는 넣지 않습니다.
+메타데이터상 CC 재사용 허용은 2개였고, 나머지 3개는 라이선스 표시가 없어 평가용 로컬
+캐시 외에 재배포하지 않습니다.
+
+| category | video | route | segments / mean | reliability | e2e (agent + ASR) | tools | report | coverage |
+|---|---:|---|---:|---:|---:|---:|---:|---:|
+| slide lecture | 11:56 | agentic | 52 / 13.65s | 0.955 | 425.5s (214.1 + 211.4) | 12 | invalid, 0 citations | 0% |
+| cooking tutorial | 10:03 | agentic | 45 / 13.27s | 0.784 | 224.2s (148.1 + 76.0) | 12 | valid, 10/10 verified | 99.99% |
+| talking head | 09:11 | baseline | 42 / 12.85s | — | 340.0s (140.2 + 199.7) | 0 | invalid, 0 citations | 0% |
+| Korean vlog | 17:07 | agentic | 6 / 166.53s | 0.000 | 392.3s (209.4 + 182.8) | 12 | invalid, 0 citations | 0% |
+| Japanese vlog | 13:20 | agentic | 54 / 14.64s | 0.762 | 389.0s (165.3 + 223.6) | 12 | valid, 11/11 verified | 85.52% |
+
+- OpenAI-compatible API 호출은 5/5 완료돼 429는 재발하지 않았지만, 유효한 보고서는 2/5였습니다.
+- 실패 3개의 최종 completion은 모두 8,192 output token 상한에 정확히 닿아 JSON이 잘렸습니다.
+  슬라이드 강의와 한국어 브이로그는 agentic 최종화, 토킹헤드는 baseline 단일 응답이었습니다.
+- agentic 4개가 모두 `max_tool_calls=12`를 소진했습니다. 모델이 한도를 넘는
+  `view_frames` 프레임 수를 요청해 각각 2/3/5/2회 도구 오류도 발생했습니다.
+- 한국어 브이로그는 BGM·자막 중심이어서 FSMN-VAD가 6개의 긴 구간으로 묶었고, 균등
+  캘리브레이션이 비발화 구간을 뽑아 faster-whisper가 일본어·영어를 환각했습니다. 이 때
+  신뢰도는 0.0으로 떨어졌습니다.
+- 총 e2e는 1,770.929초(29분 31초), 이 중 ASR 893.488초와 agent/VLM 877.171초였습니다.
+  누적 입력/출력 토큰은 139,075/48,455이며, 단가를 설정하지 않아 `vlm_cost_usd=null`입니다.
+- 이 실험은 정답 레퍼런스·judge가 없는 운영 field smoke입니다. 10/10·11/11은 조회 구간
+  overlap 규칙을 통과했다는 뜻이지 내용의 정답률을 의미하지 않습니다.
+
+즉시 보완 우선순위는 (1) 최종 보고서 출력 예산·JSON 복구, (2) 도구 요청의 사전 클램핑으로
+오류 호출 제거, (3) 도구 예산 내에 최종화를 보장, (4) VAD 발화 밀도를 반영한 캘리브레이션과
+비발화 ASR 환각 억제입니다.
 
 ## Benchmark results
 

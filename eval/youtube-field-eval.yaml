@@ -1,0 +1,45 @@
+name: youtube-field-eval-2026-09-08
+purpose: Real-world smoke evaluation of the existing vuc run pipeline
+storage: .vuc-cache/youtube-eval/videos
+results: eval/youtube-field-eval-results.json
+videos:
+  - id: 4m6wzOlQ6fg
+    category: slide_lecture
+    language: en
+    duration_s: 716
+    title: "Coffee Lecture #06 | Creative Commons Licenses"
+    channel: "Bibliothèque de l'EPFL"
+    url: "https://www.youtube.com/watch?v=4m6wzOlQ6fg"
+    license: "Creative Commons Attribution license (reuse allowed)"
+  - id: knxgR5esJu4
+    category: cooking_tutorial
+    language: en
+    duration_s: 603
+    title: "Vegetable Pancake (Yachaejeon: 야채전)"
+    channel: Maangchi
+    url: "https://www.youtube.com/watch?v=knxgR5esJu4"
+    license: null
+  - id: Keej4G0xlks
+    category: talking_head
+    language: en
+    duration_s: 551
+    title: "Open Culture Voices Vlog Series: Maja Drabczyk"
+    channel: "Creative Commons"
+    url: "https://www.youtube.com/watch?v=Keej4G0xlks"
+    license: "Creative Commons Attribution license (reuse allowed)"
+  - id: NGD_xpXAv70
+    category: korean_vlog
+    language: ko
+    duration_s: 1027
+    title: "키위 샌드위치 도시락 싸서 출근하고🥝 퇴근 후 연어 납작우동 만들어 먹으며 영양 챙기는 직장인 일상 | 고등어솟밥·키위케이크·치즈김치전·키위찹쌀떡"
+    channel: "효뎡 Dyeong"
+    url: "https://www.youtube.com/watch?v=NGD_xpXAv70"
+    license: null
+  - id: 5ZeHtRKHl7Y
+    category: non_korean_japanese_vlog
+    language: ja
+    duration_s: 800
+    title: "東京Vlog／Tokyo Vlog 【飲食店やホテルの会話】"
+    channel: "あかね的日本語教室"
+    url: "https://www.youtube.com/watch?v=5ZeHtRKHl7Y"
+    license: null
