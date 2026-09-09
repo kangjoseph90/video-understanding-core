@@ -168,17 +168,45 @@ ASR은 처리한 오디오 초와 `cloud_asr_cost_usd`로 각각 기록합니다
 16장까지 성공했다는 관측은 provider 입력 실험 결과이며 현재 파이프라인의 VLM 이미지 상한이
 아닙니다. 재현 스크립트는 [`scripts/spike_vision.py`](scripts/spike_vision.py)입니다.
 
-이전 5개 YouTube field run은 지금과 다른 모드 정의와 도구 계약으로 실행되어 현재 비교 결과로
-사용하지 않습니다. 대상 영상 manifest는 [`eval/youtube-field-eval.yaml`](eval/youtube-field-eval.yaml)에
-남겨 두었으며 세 모드로 다시 측정해야 합니다.
+대상 영상 manifest는 [`eval/youtube-field-eval.yaml`](eval/youtube-field-eval.yaml)이고, 각 영상
+옆의 `<video>.meta.json` 사이드카가 채널명·제목·챕터를 힌트로 제공합니다. 스윕 재현은
+[`scripts/run_field_eval.py`](scripts/run_field_eval.py)이며 실행별 원자료는
+[`eval/field-eval-results.jsonl`](eval/field-eval-results.jsonl)에 있습니다.
 
 ## Benchmark results
 
-| mode | videos | e2e latency | ASR | input/output tokens | report quality |
-|---|---:|---:|---:|---:|---:|
-| baseline_full | — | — | — | — | — |
-| baseline_index_only | — | — | — | — | — |
-| agentic | — | — | — | — | — |
+2026-09-09, manifest 5편(551~1027초, en/ko/ja) × 3모드 = 15회. glm-5.3-flash,
+SenseVoice CPU 인덱싱, faster-whisper large-v3-turbo CPU 고급 ASR.
+
+| mode | videos | indexing | ASR | VLM | total | input/output tokens | cost | sections | citations | tool calls |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| baseline_index_only | 5 | 83.3s | — | 100.2s | 183.5s | 9,508 / 5,080 | $0.0040 | 6.2 | 21.0 | 0 |
+| agentic | 5 | 83.3s | 20.1s | 103.2s | 206.8s | 16,385 / 5,678 | $0.0048 | 6.0 | 23.4 | 6 |
+| baseline_full | 5 | — | 245.4s | 150.0s | 403.0s | 109,612 / 6,005 | $0.0169 | 6.0 | 25.0 | 0 |
+
+영상별 평균입니다. `indexing`은 SenseVoice와 15초 프레임의 cold 비용이며, `index_only`와
+`agentic`의 공통 전제 조건입니다. `agentic`은 앞선 `index_only` 실행의 캐시를 재사용해
+측정값이 0으로 찍히므로 `total`에는 이 값을 더한 cold 등가치를 적었습니다. `baseline_full`은
+인덱스를 만들지 않습니다. `baseline_full`의 강의·요리 2건은 429와 JSON 스키마 이탈로
+재실행되어 ASR이 hot이었고, `total`과 `ASR`은 첫 시도의 cold 측정치(342s/196.6s,
+364s/222.1s)로 환산했습니다. 열 합이 `total`과 다른 것은 1초 프레임 추출·몽타주
+단계(`baseline_full` 평균 7.0초)를 표에 넣지 않았기 때문입니다.
+
+`agentic`은 `baseline_full` 대비 입력 토큰을 6.7배, 비용을 3.5배, 지연을 1.95배 줄이면서
+인용은 6% 적습니다(23.4 vs 25.0). 지연의 지배 변수는 CPU Whisper로, `baseline_full` 총
+지연의 61%입니다. `agentic`은 필요한 구간만 재전사해 평균 20.1초를 씁니다.
+
+인용 밀도는 영상에 따라 갈립니다. `baseline_full`이 앞선 것은 요리(23 vs 13), 일본어
+브이로그(41 vs 35), 강의(26 vs 22)이고, 뒤진 것은 한국어 브이로그(16 vs 29)와 talking
+head(19 vs 18)입니다. 한국어 브이로그(1027초)에서 `baseline_full`은 411초를 ASR에 쓰고
+151,029토큰을 넣었지만 4섹션 16인용에 그쳤고 추론 토큰이 1개였습니다 — 1,027프레임에서
+만든 115 몽타주가 오히려 품질을 떨어뜨렸습니다. 같은 영상에서 `agentic`은 63.9초와
+11,514토큰으로 29인용을 냈습니다.
+
+도구 호출은 15회 합계 6회이고 **전부 `transcribe_segment`**입니다(요리 2, talking head 2,
+일본어 브이로그 2). `view_frames`는 한 번도 호출되지 않았습니다. 도구를 쓴다고 인용이
+항상 늘지도 않습니다 — 요리 `agentic`은 도구 2회에도 13인용으로 `index_only`(14)보다
+적었습니다.
 
 ## Roadmap
 
