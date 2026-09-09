@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -12,9 +11,10 @@ from vuc.agent import AgentBudget, build_index_context, run_agent_loop, system_p
 from vuc.cache import VideoCache
 from vuc.config import load_config
 from vuc.llm import ChatResult
-from vuc.models import Segment, VideoIndex, VideoMetadata
-from vuc.report import apply_verification, normalize_report, report_time_coverage
-from vuc.tools import ToolError, ToolService, character_error_rate, interval_coverage
+from vuc.models import FrameArtifact, Segment, VideoIndex, VideoMetadata
+from vuc.report import normalize_report
+from vuc.run import _full_advanced_transcript
+from vuc.tools import ToolError, ToolService
 
 
 class FakeProvider:
@@ -34,10 +34,9 @@ class FakeProvider:
     ) -> ASRResult:
         self.calls += 1
         return ASRResult(
-            text="verified text",
-            sentences=(TranscriptSentence(1, 2, "verified text"),),
+            text="accurate text",
+            sentences=(TranscriptSentence(1, 2, "accurate text"),),
             language=language_hint,
-            notes=None,
             provider="local",
             model=self.model_name,
             audio_duration_s=audio_duration_s,
@@ -60,7 +59,7 @@ def make_service(tmp_path: Path, monkeypatch) -> tuple[ToolService, FakeProvider
     video.write_bytes(b"video")
     metadata = VideoMetadata(str(video), "a" * 64, 600, video.stat().st_size)
     index = VideoIndex(
-        schema_version=1,
+        schema_version=2,
         video=metadata,
         segments=(Segment(0, 600, "draft text", "en"),),
         frames=(),
@@ -81,62 +80,61 @@ def make_service(tmp_path: Path, monkeypatch) -> tuple[ToolService, FakeProvider
             index=index,
             cache=cache,
             config=config,
-            read_index_enabled=False,
             provider=provider,
         ),
         provider,
     )
 
 
-def test_local_transcribe_limit_is_three_minutes(tmp_path: Path, monkeypatch) -> None:
+def test_transcribe_limit_is_sixty_seconds(tmp_path: Path, monkeypatch) -> None:
     service, _ = make_service(tmp_path, monkeypatch)
 
-    with pytest.raises(ToolError, match="local provider limit is 180s"):
-        service.transcribe_segment(0, 180.01)
+    with pytest.raises(ToolError, match="limit is 60s"):
+        service.transcribe_segment(0, 60.01)
 
 
-def test_local_transcribe_limit_cannot_be_configured_above_three_minutes(
+def test_tool_limit_stays_sixty_when_provider_allows_more(
     tmp_path: Path, monkeypatch
 ) -> None:
     service, provider = make_service(tmp_path, monkeypatch)
     provider.max_segment_s = 600
     object.__setattr__(service.config.advanced_asr.local, "max_segment_s", 600)
 
-    assert service.provider_max_segment_s == 180
+    assert service.provider_max_segment_s == 600
+    assert service.tool_max_segment_s == 60
 
 
-def test_advanced_asr_notes_absolute_timestamps_and_cache(tmp_path: Path, monkeypatch) -> None:
+def test_baseline_chunk_uses_provider_limit(tmp_path: Path, monkeypatch) -> None:
+    service, provider = make_service(tmp_path, monkeypatch)
+    provider.max_segment_s = 180
+
+    result = service.transcribe_baseline_chunk(0, 180)
+
+    assert result.data["audio_duration_s"] == 180
+    assert provider.calls == 1
+
+
+def test_full_baseline_splits_on_provider_limit(tmp_path: Path, monkeypatch) -> None:
+    service, provider = make_service(tmp_path, monkeypatch)
+    provider.max_segment_s = 180
+
+    transcript, _ = _full_advanced_transcript(service, service.index)
+
+    assert provider.calls == 4
+    assert len(transcript.splitlines()) == 4
+
+
+def test_advanced_asr_absolute_timestamps_and_cache(tmp_path: Path, monkeypatch) -> None:
     service, provider = make_service(tmp_path, monkeypatch)
 
     first = service.transcribe_segment(10, 20)
     second = service.transcribe_segment(10, 20)
 
-    assert first.data["notes"] is None
     assert first.data["sentences"][0]["start_s"] == 11
     assert first.data["sentences"][0]["end_s"] == 12
     assert first.data["cache_hit"] is False
     assert second.data["cache_hit"] is True
     assert provider.calls == 1
-
-
-def test_cer_normalizes_spacing_punctuation_and_clips_index_window(
-    tmp_path: Path, monkeypatch
-) -> None:
-    service, _ = make_service(tmp_path, monkeypatch)
-    service.index = VideoIndex(
-        schema_version=1,
-        video=service.index.video,
-        segments=(Segment(0, 20, "가나 다라 마바 사아", "ko"),),
-        frames=(),
-        montages=(),
-        created_at=service.index.created_at,
-    )
-
-    clipped = service._index_text(10, 20)
-
-    assert "가나" not in clipped
-    assert character_error_rate("마바, 사아!", "마바 사아") == 0
-    assert character_error_rate("가나다", "가나마") == pytest.approx(1 / 3)
 
 
 def test_transcribe_trace_records_cost_dimensions(tmp_path: Path, monkeypatch) -> None:
@@ -152,83 +150,13 @@ def test_transcribe_trace_records_cost_dimensions(tmp_path: Path, monkeypatch) -
     assert summary["cost_usd"] is None
 
 
-def test_verification_uses_union_overlap() -> None:
-    class Coverage:
-        def citation_coverage(self, start_s: float, end_s: float) -> float:
-            return interval_coverage(start_s, end_s, [(0, 4), (3, 8)])
+def test_system_prompt_makes_tools_optional() -> None:
+    prompt = system_prompt()
 
-        def evidence_coverage(self, start_s: float, end_s: float, source: str) -> float:
-            assert source == "transcribe_segment"
-            return interval_coverage(start_s, end_s, [(0, 8)])
-
-    report = {
-        "sections": [
-            {
-                "citations": [
-                    {
-                        "claim": "covered",
-                        "start_s": 0,
-                        "end_s": 10,
-                        "evidence_span": {
-                            "start_s": 0,
-                            "end_s": 8,
-                            "source": "transcribe_segment",
-                        },
-                    },
-                    {
-                        "claim": "not covered",
-                        "start_s": 0,
-                        "end_s": 11,
-                        "evidence_span": {
-                            "start_s": 0,
-                            "end_s": 8,
-                            "source": "transcribe_segment",
-                        },
-                    },
-                ]
-            }
-        ]
-    }
-
-    apply_verification(report, Coverage(), verify_overlap=0.8)
-
-    citations = report["sections"][0]["citations"]
-    assert citations[0]["verification_overlap"] == 0.8
-    assert citations[0]["evidence_overlap"] == 0.8
-    assert citations[0]["verified"] is True
-    assert citations[1]["verified"] is False
-
-    normalized = normalize_report(
-        report,
-        Coverage(),
-        verify_overlap=0.8,
-        meta={},
-    )
-    assert "not covered" in normalized["unverified_claims"]
-
-
-def test_report_coverage_uses_section_union_and_finds_gaps() -> None:
-    report = {
-        "sections": [
-            {"start_s": 0, "end_s": 40},
-            {"start_s": 30, "end_s": 60},
-            {"start_s": 80, "end_s": 100},
-        ]
-    }
-
-    ratio, gaps = report_time_coverage(report, 100)
-
-    assert ratio == 0.8
-    assert gaps == [(60, 80)]
-
-
-def test_system_prompt_contains_all_required_reliability_rules() -> None:
-    prompt = system_prompt(0.75)
-
-    assert "인덱스는 저품질 초안" in prompt
-    assert "transcribe_segment로 검증" in prompt
+    assert "SenseVoice 인덱스만으로 충분하면 도구 조회는 필수가 아니다" in prompt
+    assert "transcribe_segment" in prompt
+    assert "view_frames" in prompt
     assert "프레임에 보이는 텍스트" in prompt
-    assert "특정 구간에 대한 시각적 주장" in prompt
     assert "[mm:ss]" in prompt
 
 
@@ -239,15 +167,10 @@ def test_asr_is_excluded_from_agent_budget() -> None:
     assert budget.reason() is None
 
 
-def test_agent_self_check_revises_low_coverage_report(tmp_path: Path, monkeypatch) -> None:
+def test_agent_can_finish_without_tools_or_forced_retry(tmp_path: Path, monkeypatch) -> None:
     service, _ = make_service(tmp_path, monkeypatch)
-    config = replace(
-        service.config,
-        agent=replace(service.config.agent, calibration_enabled=False),
-    )
-    service.config = config
 
-    class CoverageLLM:
+    class DirectLLM:
         model = "stub"
 
         def __init__(self) -> None:
@@ -256,77 +179,128 @@ def test_agent_self_check_revises_low_coverage_report(tmp_path: Path, monkeypatc
         def complete(self, messages, **kwargs) -> ChatResult:
             del messages, kwargs
             self.calls += 1
-            end_s = 100 if self.calls == 1 else 600
-            content = json.dumps(
-                {
-                    "title": "Coverage",
-                    "one_line_summary": "Summary",
-                    "sections": [
-                        {
-                            "title": "Section",
-                            "summary": "Summary",
-                            "start_s": 0,
-                            "end_s": end_s,
-                            "citations": [],
-                        }
-                    ],
-                    "key_moments": [],
-                    "unverified_claims": [],
-                }
-            )
             return ChatResult(
-                message={"role": "assistant", "content": content},
+                message={
+                    "role": "assistant",
+                    "content": json.dumps(
+                        {
+                            "title": "Direct",
+                            "one_line_summary": "Summary",
+                            "sections": [],
+                            "key_moments": [],
+                        }
+                    ),
+                },
                 usage={"prompt_tokens": 10, "completion_tokens": 5},
                 latency_s=0.01,
             )
 
-    client = CoverageLLM()
+    client = DirectLLM()
     raw_report, stats = run_agent_loop(
         query="summary",
         index=service.index,
         cache=service.cache,
-        config=config,
+        config=service.config,
         service=service,
         client=client,
     )
 
-    assert client.calls == 2
-    assert json.loads(raw_report)["sections"][0]["end_s"] == 600
-    assert stats["coverage_self_check"] is True
-    assert stats["cumulative_input_tokens"] == 20
-    records = [json.loads(line) for line in service.cache.trace_path.read_text().splitlines()]
-    assert any(record["event"] == "coverage_self_check" for record in records)
+    assert client.calls == 1
+    assert json.loads(raw_report)["title"] == "Direct"
+    assert stats["tool_calls"] == 0
+    assert stats["cumulative_input_tokens"] == 10
 
 
-def test_tool_schemas_and_frame_limit_error(tmp_path: Path, monkeypatch) -> None:
+def test_tool_schemas_and_montage_limit(tmp_path: Path, monkeypatch) -> None:
     service, _ = make_service(tmp_path, monkeypatch)
-    names = [schema["function"]["name"] for schema in service.schemas]
+    schemas = service.schemas
 
-    assert names == ["view_frames", "transcribe_segment"]
-    execution = service.execute(
+    assert [schema["function"]["name"] for schema in schemas] == [
         "view_frames",
-        {"start_s": 0, "end_s": 100, "fps": 0.2, "resolution": 512},
+        "transcribe_segment",
+    ]
+    assert schemas[0]["function"]["parameters"]["required"] == [
+        "start_s",
+        "end_s",
+        "fps",
+        "n",
+    ]
+    assert schemas[0]["function"]["parameters"]["properties"]["fps"] == {
+        "type": "number",
+        "exclusiveMinimum": 0,
+    }
+    execution = service.execute(
+        "view_frames", {"start_s": 0, "end_s": 100, "fps": 2, "n": 3}
     )
-    assert "예상 프레임 수 20" in execution.data["error"]
-
-    service.read_index_enabled = True
-    assert [schema["function"]["name"] for schema in service.schemas][-1] == "read_index"
+    assert "23 montage images" in execution.data["error"]
+    assert "montage limit is 16" in execution.data["error"]
 
 
-def test_large_index_is_uniformly_downsampled() -> None:
+def test_view_frames_uses_agent_selected_grid(tmp_path: Path, monkeypatch) -> None:
+    service, _ = make_service(tmp_path, monkeypatch)
+    seen: dict[str, int] = {}
+
+    def fake_frames(*_args, **_kwargs):
+        return [FrameArtifact(path=f"frame-{i}.jpg", timestamp_s=i) for i in range(20)]
+
+    def fake_montages(frames, _output_dir, *, n, jpeg_quality):
+        del frames, jpeg_quality
+        seen["n"] = n
+        return [Path("one.jpg"), Path("two.jpg"), Path("three.jpg")]
+
+    monkeypatch.setattr("vuc.tools.extract_sampled_frames", fake_frames)
+    monkeypatch.setattr("vuc.tools.create_montages", fake_montages)
+
+    result = service.view_frames(0, 100, 0.2, 3)
+
+    assert seen["n"] == 3
+    assert result.data["frame_count"] == 20
+    assert result.data["montage_count"] == 3
+    assert len(result.image_paths) == 3
+
+
+def test_full_index_is_never_downsampled() -> None:
     index = VideoIndex(
-        schema_version=1,
+        schema_version=2,
         video=VideoMetadata("video.mp4", "b" * 64, 100, 1),
         segments=tuple(
-            Segment(number, number + 1, "long transcript " * 20, "en") for number in range(100)
+            Segment(number, number + 1, f"segment-{number}", "en")
+            for number in range(100)
         ),
         frames=(),
         montages=(),
         created_at="2026-09-08T00:00:00+00:00",
     )
 
-    context, read_enabled = build_index_context(index, token_budget=100)
+    context = build_index_context(index)
 
-    assert read_enabled is True
-    assert "[00:00–00:01]" in context
-    assert "[01:39–01:40]" in context
+    assert "segment-0" in context
+    assert "segment-99" in context
+    assert len(context.splitlines()) == 100
+
+
+def test_report_has_only_plain_citation_fields() -> None:
+    report = normalize_report(
+        {
+            "sections": [
+                {
+                    "start_s": 0,
+                    "end_s": 10,
+                    "citations": [
+                        {
+                            "claim": "claim",
+                            "start_s": 1,
+                            "end_s": 2,
+                            "extra": {"source": "model"},
+                        }
+                    ],
+                }
+            ]
+        },
+        meta={"duration_s": 100},
+    )
+
+    assert report["sections"][0]["citations"] == [
+        {"claim": "claim", "start_s": 1, "end_s": 2}
+    ]
+    assert report["meta"] == {"duration_s": 100}

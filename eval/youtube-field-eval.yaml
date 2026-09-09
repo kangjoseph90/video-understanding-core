@@ -1,7 +1,6 @@
 name: youtube-field-eval-2026-09-08
-purpose: Real-world smoke evaluation of the existing vuc run pipeline
+purpose: Real-world evaluation manifest for the three explicit vuc run modes
 storage: .vuc-cache/youtube-eval/videos
-results: eval/youtube-field-eval-results.json
 videos:
   - id: 4m6wzOlQ6fg
     category: slide_lecture

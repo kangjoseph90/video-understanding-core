@@ -14,10 +14,13 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.run.mode == "agentic"
     assert config.indexer.device == "cpu"
     assert config.indexer.hub == "hf"
-    assert config.frames.montage_shape == (3, 3)
+    assert config.frames.montage_n == 3
+    assert config.frames.index_interval_s == 15
+    assert config.frames.baseline_full_interval_s == 1
     assert config.advanced_asr.provider == "local"
     assert config.advanced_asr.local.max_segment_s == 180
-    assert config.agent.verify_overlap == 0.8
+    assert config.advanced_asr.cloud.max_segment_s == 600
+    assert config.view_frames.max_montages_per_call == 16
     assert config.vision_llm.input_cost_per_million_usd == 0
     assert config.vision_llm.output_cost_per_million_usd == 0
 
@@ -32,7 +35,7 @@ def test_load_config_rejects_automatic_or_unknown_run_mode(tmp_path: Path) -> No
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="run.mode must be agentic or baseline"):
+    with pytest.raises(ValueError, match="run.mode must be agentic, baseline_full"):
         load_config(config_path)
 
 

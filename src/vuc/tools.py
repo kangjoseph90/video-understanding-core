@@ -4,9 +4,8 @@ import hashlib
 import json
 import math
 import time
-import unicodedata
 from copy import deepcopy
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,23 +14,26 @@ from vuc.cache import VideoCache
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_sampled_frames
 from vuc.media import extract_audio_segment
-from vuc.models import Segment, VideoIndex
+from vuc.models import VideoIndex
 from vuc.trace import TraceWriter
 
 VIEW_FRAMES_SCHEMA = {
     "type": "function",
     "function": {
         "name": "view_frames",
-        "description": "Extract and view timestamped frames from a video interval.",
+        "description": (
+            "Extract timestamped frames from an interval and return n×n montage images. "
+            "At most 16 montage images may be returned per call."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
                 "start_s": {"type": "number"},
                 "end_s": {"type": "number"},
-                "fps": {"type": "number", "enum": [0.1, 0.2, 0.5, 1, 2]},
-                "resolution": {"type": "integer", "enum": [256, 512, 768]},
+                "fps": {"type": "number", "exclusiveMinimum": 0},
+                "n": {"type": "integer", "minimum": 1},
             },
-            "required": ["start_s", "end_s", "fps", "resolution"],
+            "required": ["start_s", "end_s", "fps", "n"],
             "additionalProperties": False,
         },
     },
@@ -41,24 +43,10 @@ TRANSCRIBE_SEGMENT_SCHEMA = {
     "type": "function",
     "function": {
         "name": "transcribe_segment",
-        "description": "Transcribe a selected interval with the advanced ASR provider.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "start_s": {"type": "number"},
-                "end_s": {"type": "number"},
-            },
-            "required": ["start_s", "end_s"],
-            "additionalProperties": False,
-        },
-    },
-}
-
-READ_INDEX_SCHEMA = {
-    "type": "function",
-    "function": {
-        "name": "read_index",
-        "description": "Read full-quality SenseVoice index segments from a selected interval.",
+        "description": (
+            "Transcribe a selected interval with the advanced ASR provider. "
+            "The interval may be at most 60 seconds."
+        ),
         "parameters": {
             "type": "object",
             "properties": {
@@ -83,74 +71,6 @@ class ToolExecution:
     asr_elapsed_s: float = 0.0
 
 
-def merge_intervals(intervals: list[tuple[float, float]]) -> list[tuple[float, float]]:
-    merged: list[list[float]] = []
-    for start, end in sorted(intervals):
-        if end < start:
-            start, end = end, start
-        if not merged or start > merged[-1][1]:
-            merged.append([start, end])
-        else:
-            merged[-1][1] = max(merged[-1][1], end)
-    return [(start, end) for start, end in merged]
-
-
-def interval_coverage(
-    start_s: float,
-    end_s: float,
-    intervals: list[tuple[float, float]],
-) -> float:
-    if end_s < start_s:
-        start_s, end_s = end_s, start_s
-    merged = merge_intervals(intervals)
-    if math.isclose(start_s, end_s):
-        return 1.0 if any(start <= start_s <= end for start, end in merged) else 0.0
-    overlap = sum(max(0.0, min(end_s, end) - max(start_s, start)) for start, end in merged)
-    return min(1.0, overlap / (end_s - start_s))
-
-
-def normalize_for_cer(text: str) -> str:
-    normalized = unicodedata.normalize("NFKC", text).casefold()
-    return "".join(character for character in normalized if character.isalnum())
-
-
-def character_error_rate(reference: str, hypothesis: str) -> float:
-    reference_chars = normalize_for_cer(reference)
-    hypothesis_chars = normalize_for_cer(hypothesis)
-    if not reference_chars:
-        return 0.0 if not hypothesis_chars else 1.0
-    previous = list(range(len(hypothesis_chars) + 1))
-    for row, reference_char in enumerate(reference_chars, start=1):
-        current = [row]
-        for column, hypothesis_char in enumerate(hypothesis_chars, start=1):
-            current.append(
-                min(
-                    current[-1] + 1,
-                    previous[column] + 1,
-                    previous[column - 1] + (reference_char != hypothesis_char),
-                )
-            )
-        previous = current
-    return previous[-1] / len(reference_chars)
-
-
-def _slice_segment_text(segment: Segment, start_s: float, end_s: float) -> str:
-    overlap_start = max(start_s, segment.start)
-    overlap_end = min(end_s, segment.end)
-    if overlap_end <= overlap_start or not segment.text:
-        return ""
-    duration = segment.end - segment.start
-    if duration <= 0:
-        return segment.text
-    start_index = math.floor(len(segment.text) * (overlap_start - segment.start) / duration)
-    end_index = math.ceil(len(segment.text) * (overlap_end - segment.start) / duration)
-    return segment.text[start_index:end_index].strip()
-
-
-def _segment_dict(segment: Segment) -> dict[str, Any]:
-    return segment.to_dict()
-
-
 class ToolService:
     def __init__(
         self,
@@ -159,19 +79,14 @@ class ToolService:
         index: VideoIndex,
         cache: VideoCache,
         config: AppConfig,
-        read_index_enabled: bool,
         provider: AdvancedASRProvider | None = None,
     ) -> None:
         self.video_path = video_path
         self.index = index
         self.cache = cache
         self.config = config
-        self.read_index_enabled = read_index_enabled
         self._provider = provider
         self.trace = TraceWriter(cache.trace_path)
-        self.verified_intervals: list[tuple[float, float]] = []
-        self.frame_intervals: list[tuple[float, float]] = []
-        self.transcript_intervals: list[tuple[float, float]] = []
         self.asr_processing_s = 0.0
         self.cloud_asr_cost_usd = 0.0
         self.cloud_asr_audio_s = 0.0
@@ -204,21 +119,31 @@ class ToolService:
                 if self._provider.name == "local"
                 else self.config.advanced_asr.cloud.max_segment_s
             )
-            provider_limit = min(self._provider.max_segment_s, configured_limit)
-            return min(180.0, provider_limit) if self._provider.name == "local" else provider_limit
-        if self.config.advanced_asr.provider == "local":
-            return min(180.0, self.config.advanced_asr.local.max_segment_s)
-        return self.config.advanced_asr.cloud.max_segment_s
+            return min(self._provider.max_segment_s, configured_limit)
+        return (
+            self.config.advanced_asr.local.max_segment_s
+            if self.config.advanced_asr.provider == "local"
+            else self.config.advanced_asr.cloud.max_segment_s
+        )
+
+    @property
+    def tool_max_segment_s(self) -> float:
+        return min(60.0, self.provider_max_segment_s)
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
-        schemas = [deepcopy(VIEW_FRAMES_SCHEMA), deepcopy(TRANSCRIBE_SEGMENT_SCHEMA)]
-        schemas[1]["function"]["description"] += (
-            f" Maximum interval for the active provider: {self.provider_max_segment_s:.0f} seconds."
+        frames = deepcopy(VIEW_FRAMES_SCHEMA)
+        frames["function"]["description"] = (
+            "Extract timestamped frames from an interval and return n×n montage images. "
+            f"At most {self.config.view_frames.max_montages_per_call} montage images "
+            "may be returned per call."
         )
-        if self.read_index_enabled:
-            schemas.append(deepcopy(READ_INDEX_SCHEMA))
-        return schemas
+        transcript = deepcopy(TRANSCRIBE_SEGMENT_SCHEMA)
+        transcript["function"]["description"] = (
+            "Transcribe a selected interval with the advanced ASR provider. "
+            f"The interval may be at most {self.tool_max_segment_s:.0f} seconds."
+        )
+        return [frames, transcript]
 
     def _range(self, start_s: Any, end_s: Any) -> tuple[float, float]:
         try:
@@ -239,45 +164,39 @@ class ToolService:
         payload = json.dumps(arguments, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(f"{name}:{payload}".encode()).hexdigest()[:24]
 
-    def view_frames(
-        self,
-        start_s: Any,
-        end_s: Any,
-        fps: Any,
-        resolution: Any,
-    ) -> ToolExecution:
+    def view_frames(self, start_s: Any, end_s: Any, fps: Any, n: Any) -> ToolExecution:
         start, end = self._range(start_s, end_s)
         try:
             fps_value = float(fps)
-            resolution_value = int(resolution)
+            n_value = int(n)
+            n_number = float(n)
         except (TypeError, ValueError) as exc:
-            raise ToolError("fps and resolution must be numeric") from exc
-        if fps_value not in self.config.view_frames.allowed_fps:
-            raise ToolError(f"fps must be one of {self.config.view_frames.allowed_fps}")
-        if resolution_value not in self.config.view_frames.allowed_resolutions:
+            raise ToolError("fps and n must be numeric") from exc
+        if not math.isfinite(fps_value) or fps_value <= 0:
+            raise ToolError("fps must be a positive finite number")
+        if not math.isfinite(n_number) or n_value < 1 or n_value != n_number:
+            raise ToolError("n must be a positive integer")
+        frame_count = math.ceil((end - start) * fps_value)
+        montage_count = math.ceil(frame_count / (n_value * n_value))
+        maximum = self.config.view_frames.max_montages_per_call
+        if montage_count > maximum:
             raise ToolError(
-                f"resolution must be one of {self.config.view_frames.allowed_resolutions}"
-            )
-        expected = math.ceil((end - start) * fps_value)
-        if expected > self.config.view_frames.max_frames_per_call:
-            raise ToolError(
-                f"구간을 줄이거나 fps를 낮춰라: 예상 프레임 수 {expected}, "
-                f"상한 {self.config.view_frames.max_frames_per_call}"
+                f"increase n or reduce the interval/fps: expected {frame_count} frames and "
+                f"{montage_count} montage images; montage limit is {maximum}"
             )
         arguments = {
             "start_s": start,
             "end_s": end,
             "fps": fps_value,
-            "resolution": resolution_value,
+            "n": n_value,
+            "resolution": self.config.view_frames.resolution,
         }
         call_dir = self.cache.tool_frames_dir / self._key("view_frames", arguments)
         metadata_path = call_dir / "result.json"
         if metadata_path.exists():
-            data = json.loads(metadata_path.read_text(encoding="utf-8"))
-            images = tuple(Path(path) for path in data["image_paths"])
-            self.verified_intervals.append((start, end))
-            self.frame_intervals.append((start, end))
-            return ToolExecution(data={**data, "cache_hit": True}, image_paths=images)
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            images = tuple(Path(path) for path in metadata.pop("image_paths"))
+            return ToolExecution(data={**metadata, "cache_hit": True}, image_paths=images)
 
         frames = extract_sampled_frames(
             self.video_path,
@@ -285,26 +204,26 @@ class ToolService:
             start_s=start,
             end_s=end,
             fps=fps_value,
-            resolution=resolution_value,
+            resolution=self.config.view_frames.resolution,
             jpeg_quality=self.config.frames.jpeg_quality,
         )
-        montage_config = replace(
-            self.config.frames,
-            initial_interval_s=1 / fps_value,
-            initial_resolution=resolution_value,
+        montages = create_montages(
+            frames,
+            call_dir / "montages",
+            n=n_value,
+            jpeg_quality=self.config.frames.jpeg_quality,
         )
-        montages = create_montages(frames, call_dir / "montages", montage_config)
-        images = tuple(montages or [Path(frame.path) for frame in frames])
-        data = {
+        images = tuple(montages)
+        data: dict[str, Any] = {
             **arguments,
             "frame_count": len(frames),
-            "frames": [frame.to_dict() for frame in frames],
-            "image_paths": [str(path) for path in images],
+            "montage_count": len(montages),
             "cache_hit": False,
         }
-        self.cache.write_json(metadata_path, data)
-        self.verified_intervals.append((start, end))
-        self.frame_intervals.append((start, end))
+        self.cache.write_json(
+            metadata_path,
+            {**data, "image_paths": [str(path) for path in images]},
+        )
         return ToolExecution(data=data, image_paths=images)
 
     def _language_hint(self, start_s: float, end_s: float) -> str | None:
@@ -317,30 +236,13 @@ class ToolService:
         }
         return next(iter(languages)) if len(languages) == 1 else None
 
-    def _index_text(self, start_s: float, end_s: float) -> str:
-        return " ".join(
-            text
-            for segment in self.index.segments
-            if (text := _slice_segment_text(segment, start_s, end_s))
-        )
-
-    def _index_score(self, start_s: float, end_s: float, transcript: str) -> dict[str, Any]:
-        index_text = self._index_text(start_s, end_s)
-        cer = character_error_rate(transcript, index_text)
-        return {
-            "index_text": index_text,
-            "index_cer": round(cer, 6),
-            "index_similarity": round(max(0.0, 1.0 - cer), 6),
-            "index_similarity_metric": "1-CER after NFKC/alphanumeric normalization",
-        }
-
-    def transcribe_segment(self, start_s: Any, end_s: Any) -> ToolExecution:
+    def _transcribe(self, start_s: Any, end_s: Any, *, maximum_s: float) -> ToolExecution:
         start, end = self._range(start_s, end_s)
         duration = end - start
-        if duration > self.provider_max_segment_s + 1e-6:
+        if duration > maximum_s + 1e-6:
             raise ToolError(
                 f"transcribe_segment interval is {duration:.3f}s; "
-                f"{self.provider_name} provider limit is {self.provider_max_segment_s:.0f}s"
+                f"the limit is {maximum_s:.0f}s"
             )
         arguments = {
             "start_s": start,
@@ -351,23 +253,13 @@ class ToolService:
         result_path = self.cache.advanced_asr_dir / f"{self._key('asr', arguments)}.json"
         if result_path.exists():
             data = json.loads(result_path.read_text(encoding="utf-8"))
-            data.update(self._index_score(start, end, str(data.get("text") or "")))
-            self.cache.write_json(result_path, data)
-            self.verified_intervals.append((start, end))
-            self.transcript_intervals.append((start, end))
             return ToolExecution(data={**data, "cache_hit": True})
 
         audio_path = result_path.with_suffix(".wav")
-        extract_audio_segment(
-            self.cache.audio_path,
-            audio_path,
-            start_s=start,
-            end_s=end,
-        )
+        extract_audio_segment(self.cache.audio_path, audio_path, start_s=start, end_s=end)
         language_hint = self._language_hint(start, end)
         wall_started = time.monotonic()
-        provider = self.provider
-        result = provider.transcribe(
+        result = self.provider.transcribe(
             audio_path,
             audio_duration_s=duration,
             language_hint=language_hint,
@@ -387,29 +279,21 @@ class ToolService:
                     for sentence in result.sentences
                 ],
                 "language_hint": language_hint,
-                **self._index_score(start, end, result.text),
                 "cache_hit": False,
             }
         )
         self.cache.write_json(result_path, data)
-        self.verified_intervals.append((start, end))
-        self.transcript_intervals.append((start, end))
         self.asr_processing_s += asr_elapsed
         if result.provider == "cloud":
             self.cloud_asr_audio_s += duration
             self.cloud_asr_cost_usd += result.cost_usd or 0.0
         return ToolExecution(data=data, asr_elapsed_s=asr_elapsed)
 
-    def read_index(self, start_s: Any, end_s: Any) -> ToolExecution:
-        if not self.read_index_enabled:
-            raise ToolError("read_index is disabled because the full index fits the prompt budget")
-        start, end = self._range(start_s, end_s)
-        segments = [
-            _segment_dict(segment)
-            for segment in self.index.segments
-            if segment.end > start and segment.start < end
-        ]
-        return ToolExecution(data={"start_s": start, "end_s": end, "segments": segments})
+    def transcribe_segment(self, start_s: Any, end_s: Any) -> ToolExecution:
+        return self._transcribe(start_s, end_s, maximum_s=self.tool_max_segment_s)
+
+    def transcribe_baseline_chunk(self, start_s: Any, end_s: Any) -> ToolExecution:
+        return self._transcribe(start_s, end_s, maximum_s=self.provider_max_segment_s)
 
     def execute(self, name: str, arguments: dict[str, Any]) -> ToolExecution:
         started = time.monotonic()
@@ -418,8 +302,6 @@ class ToolService:
                 execution = self.view_frames(**arguments)
             elif name == "transcribe_segment":
                 execution = self.transcribe_segment(**arguments)
-            elif name == "read_index":
-                execution = self.read_index(**arguments)
             else:
                 raise ToolError(f"unknown tool: {name}")
         except (ToolError, OSError, RuntimeError, TypeError) as exc:
@@ -440,15 +322,3 @@ class ToolService:
             duration_ms=round((time.monotonic() - started) * 1000),
         )
         return execution
-
-    def citation_coverage(self, start_s: float, end_s: float) -> float:
-        return interval_coverage(start_s, end_s, self.verified_intervals)
-
-    def evidence_coverage(self, start_s: float, end_s: float, source: str) -> float:
-        if source == "view_frames":
-            intervals = self.frame_intervals
-        elif source == "transcribe_segment":
-            intervals = self.transcript_intervals
-        else:
-            return 0.0
-        return interval_coverage(start_s, end_s, intervals)

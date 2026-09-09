@@ -16,6 +16,6 @@ def test_view_frames_tool_has_required_m2_signature() -> None:
     parameters = function["parameters"]
 
     assert function["name"] == "view_frames"
-    assert parameters["required"] == ["start_s", "end_s", "fps", "resolution"]
-    assert parameters["properties"]["fps"]["enum"] == [0.1, 0.2, 0.5, 1, 2]
-    assert parameters["properties"]["resolution"]["enum"] == [256, 512, 768]
+    assert parameters["required"] == ["start_s", "end_s", "fps", "n"]
+    assert parameters["properties"]["fps"]["exclusiveMinimum"] == 0
+    assert parameters["properties"]["n"]["minimum"] == 1

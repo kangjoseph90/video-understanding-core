@@ -67,8 +67,8 @@ def extract_initial_frames(
         output_dir,
         start_s=0,
         end_s=duration_s,
-        fps=1 / config.initial_interval_s,
-        resolution=config.initial_resolution,
+        fps=1 / config.index_interval_s,
+        resolution=config.index_resolution,
         jpeg_quality=config.jpeg_quality,
     )
 
@@ -121,12 +121,17 @@ def extract_sampled_frames(
 
 
 def create_montages(
-    frames: list[FrameArtifact], output_dir: Path, config: FramesConfig
+    frames: list[FrameArtifact],
+    output_dir: Path,
+    *,
+    n: int,
+    jpeg_quality: int,
 ) -> list[Path]:
-    if not config.montage_enabled or len(frames) < 4:
+    if not frames:
         return []
-    columns, rows = config.montage_shape
-    group_size = columns * rows
+    if n < 1:
+        raise ValueError("montage grid size must be positive")
+    group_size = n * n
     output_dir.mkdir(parents=True, exist_ok=True)
     for old_montage in output_dir.glob("montage-*.jpg"):
         old_montage.unlink()
@@ -136,14 +141,14 @@ def create_montages(
         group = frames[group_index * group_size : (group_index + 1) * group_size]
         with Image.open(group[0].path) as first:
             tile_width, tile_height = first.size
-        canvas = Image.new("RGB", (tile_width * columns, tile_height * rows), color=(18, 18, 18))
+        canvas = Image.new("RGB", (tile_width * n, tile_height * n), color=(18, 18, 18))
         for cell_index, artifact in enumerate(group):
             with Image.open(artifact.path) as frame:
                 tile = frame.convert("RGB")
-            x = (cell_index % columns) * tile_width
-            y = (cell_index // columns) * tile_height
+            x = (cell_index % n) * tile_width
+            y = (cell_index // n) * tile_height
             canvas.paste(tile, (x, y))
         montage_path = output_dir / f"montage-{group_index + 1:04d}.jpg"
-        canvas.save(montage_path, "JPEG", quality=config.jpeg_quality, optimize=True)
+        canvas.save(montage_path, "JPEG", quality=jpeg_quality, optimize=True)
         montages.append(montage_path)
     return montages

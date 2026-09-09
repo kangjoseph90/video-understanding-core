@@ -24,6 +24,9 @@ class StubAdvancedASR:
     model_name = "stub"
     max_segment_s = 180
 
+    def __init__(self) -> None:
+        self.calls = 0
+
     def transcribe(
         self,
         audio_path: Path,
@@ -31,11 +34,11 @@ class StubAdvancedASR:
         audio_duration_s: float,
         language_hint: str | None,
     ) -> ASRResult:
+        self.calls += 1
         return ASRResult(
             text="The video shows a test pattern.",
             sentences=(TranscriptSentence(0, audio_duration_s, "test pattern"),),
             language=language_hint,
-            notes=None,
             provider="local",
             model="stub",
             audio_duration_s=audio_duration_s,
@@ -59,21 +62,11 @@ class StubLLM:
                     "start_s": 0,
                     "end_s": 4,
                     "citations": [
-                        {
-                            "claim": "Pattern",
-                            "start_s": 0,
-                            "end_s": 4,
-                            "evidence_span": {
-                                "start_s": 0,
-                                "end_s": 4,
-                                "source": "transcribe_segment",
-                            },
-                        }
+                        {"claim": "Pattern", "start_s": 0, "end_s": 4}
                     ],
                 }
             ],
             "key_moments": [{"title": "Start", "summary": "Pattern", "timestamp_s": 0}],
-            "unverified_claims": [],
         }
         return ChatResult(
             message={"role": "assistant", "content": json.dumps(report)},
@@ -83,8 +76,13 @@ class StubLLM:
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required")
-@pytest.mark.parametrize("mode", ["baseline", "agentic"])
-def test_run_explicit_mode_ignores_short_duration(tmp_path: Path, mode: str) -> None:
+@pytest.mark.parametrize(
+    ("mode", "expected_asr_calls"),
+    [("baseline_full", 1), ("baseline_index_only", 0), ("agentic", 0)],
+)
+def test_run_explicit_mode_ignores_short_duration(
+    tmp_path: Path, mode: str, expected_asr_calls: int
+) -> None:
     video = tmp_path / "sample.mp4"
     subprocess.run(
         [
@@ -121,11 +119,12 @@ def test_run_explicit_mode_ignores_short_duration(tmp_path: Path, mode: str) -> 
     config_path.write_text(config_text, encoding="utf-8")
     config = load_config(config_path)
 
+    provider = StubAdvancedASR()
     report, markdown_path, json_path = run_video(
         video,
         config,
         index_transcriber=StubIndexer(),
-        advanced_provider=StubAdvancedASR(),
+        advanced_provider=provider,
         llm_client=StubLLM(),
     )
 
@@ -133,7 +132,11 @@ def test_run_explicit_mode_ignores_short_duration(tmp_path: Path, mode: str) -> 
     assert report["meta"]["cumulative_input_tokens"] == 100
     assert report["meta"]["output_tokens"] == 50
     assert report["meta"]["vlm_cost_usd"] is None
-    assert report["meta"]["coverage_ratio"] == 1
-    assert report["sections"][0]["citations"][0]["verified"] is True
+    assert provider.calls == expected_asr_calls
+    assert report["sections"][0]["citations"][0] == {
+        "claim": "Pattern",
+        "start_s": 0,
+        "end_s": 4,
+    }
     assert markdown_path.exists()
     assert json_path.exists()

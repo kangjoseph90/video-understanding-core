@@ -27,7 +27,6 @@ class ASRResult:
     text: str
     sentences: tuple[TranscriptSentence, ...]
     language: str | None
-    notes: str | None
     provider: str
     model: str
     audio_duration_s: float
@@ -39,7 +38,6 @@ class ASRResult:
             "text": self.text,
             "sentences": [sentence.to_dict() for sentence in self.sentences],
             "language": self.language,
-            "notes": self.notes,
             "provider": self.provider,
             "model": self.model,
             "audio_duration_s": self.audio_duration_s,
@@ -110,7 +108,6 @@ class FasterWhisperProvider:
             text=" ".join(sentence.text for sentence in sentences),
             sentences=sentences,
             language=getattr(info, "language", language_hint),
-            notes=None,
             provider=self.name,
             model=self.model_name,
             audio_duration_s=audio_duration_s,

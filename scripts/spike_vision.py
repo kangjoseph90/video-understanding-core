@@ -27,10 +27,10 @@ VIEW_FRAMES_TOOL = {
             "properties": {
                 "start_s": {"type": "number"},
                 "end_s": {"type": "number"},
-                "fps": {"type": "number", "enum": [0.1, 0.2, 0.5, 1, 2]},
-                "resolution": {"type": "integer", "enum": [256, 512, 768]},
+                "fps": {"type": "number", "exclusiveMinimum": 0},
+                "n": {"type": "integer", "minimum": 1},
             },
-            "required": ["start_s", "end_s", "fps", "resolution"],
+            "required": ["start_s", "end_s", "fps", "n"],
             "additionalProperties": False,
         },
     },
@@ -160,7 +160,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         response, latency = client.request(
             prompt=(
                 "이미지를 확인한 뒤 더 자세한 프레임 검사가 필요하므로 view_frames 도구를 "
-                "0초부터 30초까지, 0.1fps, 512 해상도로 호출하세요."
+                "0초부터 30초까지, 0.1fps, 3x3 몽타주로 호출하세요."
             ),
             images=[first_montage],
             tools=[VIEW_FRAMES_TOOL],

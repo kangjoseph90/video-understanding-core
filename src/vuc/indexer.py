@@ -10,61 +10,13 @@ from vuc.models import Segment
 
 TAG_PATTERN = re.compile(r"<\|([^|]+)\|>")
 RICH_PREFIX_PATTERN = re.compile(r"(?:<\|[^|]+\|>)+")
-HANGUL_WORD_PATTERN = re.compile(r"[가-힣]+")
 LANGUAGES = {"zh", "en", "yue", "ja", "ko", "nospeech"}
 EMOTIONS = {"happy", "sad", "angry", "neutral", "emo_unk", "emo_unknown"}
 NON_EVENTS = LANGUAGES | EMOTIONS | {"withitn", "woitn"}
-DUPLICATED_KOREAN_SUFFIXES = tuple(
-    sorted(
-        {
-            "에서",
-            "세요",
-            "까지",
-            "부터",
-            "에게",
-            "에는",
-            "으로",
-            "처럼",
-            "보다",
-            "하고",
-            "하며",
-            "지만",
-            "는데",
-            "습니다",
-            "니다",
-            "는",
-            "은",
-            "이",
-            "가",
-            "을",
-            "를",
-            "에",
-            "도",
-            "만",
-            "요",
-        },
-        key=len,
-        reverse=True,
-    )
-)
 
 
 class Transcriber(Protocol):
     def transcribe(self, audio_path: Path) -> list[Segment]: ...
-
-
-def clean_repeated_korean_suffixes(text: str) -> str:
-    """Remove conservative ASR repetitions while preserving the raw transcription."""
-
-    def clean(match: re.Match[str]) -> str:
-        word = match.group(0)
-        for suffix in DUPLICATED_KOREAN_SUFFIXES:
-            repeated = suffix + suffix
-            if word.endswith(repeated) and len(word) > len(repeated):
-                return word[: -len(suffix)]
-        return word
-
-    return HANGUL_WORD_PATTERN.sub(clean, text)
 
 
 def parse_rich_text(raw_text: str) -> tuple[str, str, str | None, tuple[str, ...]]:
@@ -77,7 +29,7 @@ def parse_rich_text(raw_text: str) -> tuple[str, str, str | None, tuple[str, ...
         for original, lower in zip(tags, normalized, strict=True)
         if lower not in NON_EVENTS
     )
-    text = clean_repeated_korean_suffixes(TAG_PATTERN.sub("", raw_text).strip())
+    text = TAG_PATTERN.sub("", raw_text).strip()
     return text, language, emotion, audio_events
 
 

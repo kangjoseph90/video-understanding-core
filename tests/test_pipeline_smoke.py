@@ -60,7 +60,7 @@ def test_index_video_creates_cache_frames_montage_and_trace(tmp_path: Path) -> N
     config_data = (
         source_config.read_text(encoding="utf-8")
         .replace("directory: .vuc-cache", f"directory: {tmp_path / 'cache'}")
-        .replace("initial_interval_s: 30", "initial_interval_s: 1")
+        .replace("index_interval_s: 15", "index_interval_s: 1")
     )
     config_path = tmp_path / "config.yaml"
     config_path.write_text(config_data, encoding="utf-8")
@@ -74,6 +74,12 @@ def test_index_video_creates_cache_frames_montage_and_trace(tmp_path: Path) -> N
     assert cache.trace_path.exists()
     assert len(index.frames) == 4
     assert len(index.montages) == 1
+    assert index.frame_config == {
+        "interval_s": 1.0,
+        "resolution": 256,
+        "montage_n": 3,
+        "jpeg_quality": 88,
+    }
     assert "<Speech>" in cache.index_text_path.read_text(encoding="utf-8")
     trace = [json.loads(line) for line in cache.trace_path.read_text().splitlines()]
     assert {item["event"] for item in trace} == {

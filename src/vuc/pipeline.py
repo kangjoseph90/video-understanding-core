@@ -61,7 +61,17 @@ def _load_cached(path: Path) -> VideoIndex:
         montages=tuple(data["montages"]),
         created_at=data["created_at"],
         indexer=data.get("indexer", {}),
+        frame_config=data.get("frame_config", {}),
     )
+
+
+def _frame_config(config: AppConfig) -> dict[str, float | int]:
+    return {
+        "interval_s": config.frames.index_interval_s,
+        "resolution": config.frames.index_resolution,
+        "montage_n": config.frames.montage_n,
+        "jpeg_quality": config.frames.jpeg_quality,
+    }
 
 
 def index_video(
@@ -78,14 +88,15 @@ def index_video(
     trace = TraceWriter(cache.trace_path)
     if cache.index_json_path.exists() and not force:
         cached = _load_cached(cache.index_json_path)
-        trace.write(
-            step="index",
-            event="cache_hit",
-            arguments={"video_path": str(video_path)},
-            result_summary={"video_hash": video_hash},
-            duration_ms=0,
-        )
-        return cached, cache, True
+        if cached.frame_config == _frame_config(config):
+            trace.write(
+                step="index",
+                event="cache_hit",
+                arguments={"video_path": str(video_path)},
+                result_summary={"video_hash": video_hash},
+                duration_ms=0,
+            )
+            return cached, cache, True
 
     duration_s = probe_duration(video_path)
     metadata = VideoMetadata(
@@ -117,13 +128,19 @@ def index_video(
             duration_s=duration_s,
             config=config.frames,
         )
-        montages = create_montages(frames, cache.montages_dir, config.frames)
+        montages = create_montages(
+            frames,
+            cache.montages_dir,
+            n=config.frames.montage_n,
+            jpeg_quality=config.frames.jpeg_quality,
+        )
         trace.write(
             step="index",
             event="initial_frames",
             arguments={
-                "interval_s": config.frames.initial_interval_s,
-                "resolution": config.frames.initial_resolution,
+                "interval_s": config.frames.index_interval_s,
+                "resolution": config.frames.index_resolution,
+                "montage_n": config.frames.montage_n,
             },
             result_summary={"frames": len(frames), "montages": len(montages)},
             duration_ms=round((time.monotonic() - started) * 1000),
@@ -137,18 +154,18 @@ def index_video(
         frames, montages = frames_future.result()
 
     index = VideoIndex(
-        schema_version=1,
+        schema_version=2,
         video=metadata,
         segments=tuple(segments),
         frames=tuple(frames),
         montages=tuple(str(path) for path in montages),
         created_at=datetime.now(UTC).isoformat(),
         indexer={
-            "backend": config.indexer.backend,
             "hub": config.indexer.hub,
             "model": config.indexer.model,
             "vad_model": config.indexer.vad_model,
         },
+        frame_config=_frame_config(config),
     )
     cache.write_json(cache.index_json_path, index.to_dict())
     cache.index_text_path.write_text(_text_index(segments), encoding="utf-8")

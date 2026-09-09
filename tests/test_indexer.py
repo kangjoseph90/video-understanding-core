@@ -1,4 +1,4 @@
-from vuc.indexer import clean_repeated_korean_suffixes, normalize_funasr_result, parse_rich_text
+from vuc.indexer import normalize_funasr_result, parse_rich_text
 
 
 def test_parse_rich_text_preserves_semantic_tags() -> None:
@@ -10,12 +10,6 @@ def test_parse_rich_text_preserves_semantic_tags() -> None:
     assert language == "ko"
     assert emotion == "happy"
     assert events == ("Speech", "BGM")
-
-
-def test_clean_repeated_korean_suffixes_is_conservative() -> None:
-    text = "피아노치는는 것 중에서에서 말 걸어주세요세요 하나하나"
-
-    assert clean_repeated_korean_suffixes(text) == "피아노치는 것 중에서 말 걸어주세요 하나하나"
 
 
 def test_normalize_sentence_info_uses_absolute_vad_timestamps() -> None:

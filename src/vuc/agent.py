@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import random
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,7 +18,6 @@ from vuc.llm import (
     output_token_count,
 )
 from vuc.models import Segment, VideoIndex
-from vuc.report import parse_report_json, report_time_coverage
 from vuc.tools import ToolExecution, ToolService
 from vuc.trace import TraceWriter
 
@@ -31,20 +29,11 @@ Return only one JSON object with this shape:
   "sections": [
     {
       "title": "...", "summary": "...", "start_s": 0, "end_s": 30,
-      "citations": [{
-        "claim": "...", "start_s": 0, "end_s": 10,
-        "evidence_span": {
-          "start_s": 0, "end_s": 10,
-          "source": "transcribe_segment"
-        }
-      }]
+      "citations": [{"claim": "...", "start_s": 0, "end_s": 10}]
     }
   ],
-  "key_moments": [{"title": "...", "summary": "...", "timestamp_s": 0}],
-  "unverified_claims": ["..."]
+  "key_moments": [{"title": "...", "summary": "...", "timestamp_s": 0}]
 }
-Do not emit a verified field; it is computed from the trace after your response.
-evidence_span.source must be either view_frames or transcribe_segment.
 Keep the complete JSON concise enough to fit within the output limit.
 """.strip()
 
@@ -92,41 +81,24 @@ def _index_line(segment: Segment) -> str:
     ).strip()
 
 
-def build_index_context(index: VideoIndex, token_budget: int) -> tuple[str, bool]:
-    lines = [_index_line(segment) for segment in index.segments]
-    full_text = "\n".join(lines)
-    estimated_tokens = max(1, len(full_text) // 4)
-    if estimated_tokens <= token_budget:
-        return full_text, False
-    keep = max(2, int(len(lines) * token_budget / estimated_tokens))
-    positions = {round(index * (len(lines) - 1) / (keep - 1)) for index in range(keep)}
-    sampled = [line for index, line in enumerate(lines) if index in positions]
-    return "\n".join(sampled), True
+def build_index_context(index: VideoIndex) -> str:
+    return "\n".join(_index_line(segment) for segment in index.segments)
 
 
-def select_evenly(paths: list[Path], maximum: int) -> list[Path]:
-    if len(paths) <= maximum:
-        return paths
-    if maximum <= 1:
-        return [paths[0]]
-    positions = {round(index * (len(paths) - 1) / (maximum - 1)) for index in range(maximum)}
-    return [path for index, path in enumerate(paths) if index in positions]
-
-
-def system_prompt(index_reliability: float | None) -> str:
-    reliability = "측정 불가" if index_reliability is None else f"{index_reliability:.3f}"
+def system_prompt() -> str:
     return f"""당신은 긴 영상을 근거 중심으로 분석하는 에이전트다.
 
-필수 신뢰 규칙:
-- 제공된 SenseVoice 인덱스는 저품질 초안이며 언어에 따라 오인식 정도가 크게 다르다.
-- 보고서에 인용하거나 핵심 주장의 근거로 삼는 구간은 transcribe_segment로 검증해야 한다.
+분석 규칙:
+- 제공된 SenseVoice 인덱스에는 인식 오류가 있을 수 있다.
+- SenseVoice 인덱스만으로 충분하면 도구 조회는 필수가 아니다.
+- 더 정확한 음성 전사가 필요할 때 transcribe_segment를 사용한다.
+- 더 자세한 시각 정보가 필요할 때 해당 시간 구간을 view_frames로 조회한다.
 - 프레임에 보이는 텍스트(슬라이드, 자막, 화면 텍스트)는 ASR보다 우선 신뢰한다.
-- 특정 구간에 대한 시각적 주장은 반드시 그 구간을 view_frames로 조회한 프레임으로만 뒷받침한다.
-- 모든 인용은 [mm:ss] 또는 [mm:ss–mm:ss] 형식을 사용한다.
-- 각 citation의 evidence_span에는 실제 근거 구간과 사용한 도구 source를 기록한다.
+- citation 시간은 start_s/end_s에 초 단위로 기록한다. 최종 Markdown은 이를 [mm:ss] 또는
+  [mm:ss–mm:ss]로 표시한다.
 
-이 영상에서 캘리브레이션한 인덱스 신뢰도: {reliability}
-도구를 사용해 중요한 주장과 장면을 확인한 뒤 보고서를 완성하라.
+초기 SenseVoice 인덱스와 타임스탬프 몽타주를 바탕으로 보고서를 작성하라.
+필요한 경우에만 도구를 사용하라.
 {REPORT_SCHEMA}"""
 
 
@@ -134,7 +106,7 @@ def _initial_user_message(query: str, index_text: str, images: list[Path]) -> di
     content: list[dict[str, Any]] = [
         {
             "type": "text",
-            "text": f"사용자 쿼리:\n{query}\n\nSenseVoice 초안 인덱스:\n{index_text}",
+            "text": f"사용자 쿼리:\n{query}\n\nSenseVoice 전체 인덱스:\n{index_text}",
         }
     ]
     content.extend(image_content(path) for path in images)
@@ -155,43 +127,6 @@ def _record_llm(trace: TraceWriter, result: ChatResult, *, finalizing: bool) -> 
     )
 
 
-def _calibration_ranges(index: VideoIndex, config: AppConfig) -> list[tuple[float, float]]:
-    segment_s = config.agent.calibration_segment_s
-    count = max(2, min(3, config.agent.calibration_segments))
-    generator = random.Random(index.video.sha256)
-    bucket_s = index.video.duration_s / count
-    starts = []
-    for bucket in range(count):
-        low = bucket * bucket_s
-        high = max(
-            low, min((bucket + 1) * bucket_s - segment_s, index.video.duration_s - segment_s)
-        )
-        starts.append(generator.uniform(low, high))
-    return [(start, min(start + segment_s, index.video.duration_s)) for start in starts]
-
-
-def calibrate(
-    service: ToolService,
-    index: VideoIndex,
-    config: AppConfig,
-) -> tuple[float | None, list[dict[str, Any]], float]:
-    if not config.agent.calibration_enabled:
-        return None, [], 0.0
-    results = []
-    excluded_s = 0.0
-    for start_s, end_s in _calibration_ranges(index, config):
-        execution = service.execute("transcribe_segment", {"start_s": start_s, "end_s": end_s})
-        excluded_s += execution.asr_elapsed_s
-        results.append(execution.data)
-    scores = [
-        float(result["index_similarity"])
-        for result in results
-        if "index_similarity" in result and "error" not in result
-    ]
-    reliability = sum(scores) / len(scores) if scores else None
-    return reliability, results, excluded_s
-
-
 def run_agent_loop(
     *,
     query: str,
@@ -201,17 +136,12 @@ def run_agent_loop(
     service: ToolService,
     client: ChatCompletionsClient,
 ) -> tuple[str, dict[str, Any]]:
-    index_text, _ = build_index_context(index, config.indexer.initial_prompt_tokens)
-    initial_images = select_evenly(
-        [Path(path) for path in index.montages],
-        config.vision_llm.max_images_per_request,
-    )
+    index_text = build_index_context(index)
+    initial_images = [Path(path) for path in index.montages]
     budget = AgentBudget.start(config)
-    reliability, calibration_results, calibration_asr_s = calibrate(service, index, config)
-    budget.excluded_asr_s += calibration_asr_s
     trace = TraceWriter(cache.trace_path)
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": system_prompt(reliability)},
+        {"role": "system", "content": system_prompt()},
         _initial_user_message(
             query,
             f"영상 길이: {index.video.duration_s:.3f}초\n{index_text}",
@@ -220,7 +150,6 @@ def run_agent_loop(
     ]
     final_text = ""
     stop_reason: str | None = None
-    self_check_done = False
 
     while True:
         reason = budget.reason()
@@ -231,7 +160,7 @@ def run_agent_loop(
                 {
                     "role": "user",
                     "content": (
-                        f"예산 종료 사유는 {reason}이다. 추가 도구 없이 현재 근거만으로 "
+                        f"예산 종료 사유는 {reason}이다. 추가 도구 없이 현재 자료만으로 "
                         "지금 최종 JSON 보고서를 작성하라."
                     ),
                 }
@@ -246,58 +175,16 @@ def run_agent_loop(
         budget.output_tokens += output_token_count(result.usage)
         tool_calls = result.message.get("tool_calls") or []
         if finalizing or not tool_calls:
-            candidate = str(result.message.get("content") or "")
-            if not self_check_done:
-                self_check_done = True
-                try:
-                    candidate_report = parse_report_json(candidate)
-                except (json.JSONDecodeError, ValueError):
-                    coverage_ratio = 0.0
-                    uncovered = [(0.0, index.video.duration_s)]
-                else:
-                    coverage_ratio, uncovered = report_time_coverage(
-                        candidate_report, index.video.duration_s
-                    )
-                trace.write(
-                    step="agent",
-                    event="coverage_self_check",
-                    arguments={"required_ratio": 0.9},
-                    result_summary={
-                        "coverage_ratio": round(coverage_ratio, 4),
-                        "uncovered_spans": uncovered,
-                    },
-                    duration_ms=0,
-                )
-                if not finalizing and coverage_ratio < 0.9:
-                    gaps = ", ".join(
-                        f"[{format_timestamp(start_s)}–{format_timestamp(end_s)}]"
-                        for start_s, end_s in uncovered
-                    )
-                    messages.extend(
-                        [
-                            {"role": "assistant", "content": candidate},
-                            {
-                                "role": "user",
-                                "content": (
-                                    f"종료 전 자기점검 결과 섹션 시간 합집합이 영상의 "
-                                    f"{coverage_ratio:.1%}만 다룬다. 공백 구간은 {gaps}이다. "
-                                    "필요하면 추가 도구로 조회하고, 조회하지 않는 공백은 "
-                                    "unverified_claims에 명시한 뒤 완전한 최종 JSON을 다시 "
-                                    "작성하라."
-                                ),
-                            },
-                        ]
-                    )
-                    continue
-            final_text = candidate
+            final_text = str(result.message.get("content") or "")
             break
 
-        assistant_message = {
-            "role": "assistant",
-            "content": result.message.get("content"),
-            "tool_calls": tool_calls,
-        }
-        messages.append(assistant_message)
+        messages.append(
+            {
+                "role": "assistant",
+                "content": result.message.get("content"),
+                "tool_calls": tool_calls,
+            }
+        )
         returned_images: list[Path] = []
         for call in tool_calls:
             exhausted = budget.reason()
@@ -316,7 +203,6 @@ def run_agent_loop(
                     if not isinstance(arguments, dict):
                         raise ValueError("tool arguments must be an object")
                 except (json.JSONDecodeError, TypeError, ValueError) as exc:
-                    arguments = {}
                     execution = ToolExecution(data={"error": f"invalid tool arguments: {exc}"})
                 else:
                     execution = service.execute(name, arguments)
@@ -334,7 +220,7 @@ def run_agent_loop(
             content = [
                 {
                     "type": "text",
-                    "text": "방금 view_frames 도구가 반환한 실제 프레임 이미지다.",
+                    "text": "방금 view_frames 도구가 반환한 n×n 몽타주 이미지다.",
                 }
             ]
             content.extend(image_content(path) for path in returned_images)
@@ -343,7 +229,7 @@ def run_agent_loop(
     vlm_cost_usd = estimate_vlm_cost_usd(
         config.vision_llm, budget.input_tokens, budget.output_tokens
     )
-    stats = {
+    return final_text, {
         "tool_calls": budget.tool_calls,
         "cumulative_input_tokens": budget.input_tokens,
         "output_tokens": budget.output_tokens,
@@ -353,9 +239,5 @@ def run_agent_loop(
         "asr_processing_s": round(service.asr_processing_s, 3),
         "cloud_asr_audio_s": round(service.cloud_asr_audio_s, 3),
         "cloud_asr_cost_usd": round(service.cloud_asr_cost_usd, 6),
-        "index_reliability": reliability,
-        "calibration": calibration_results,
         "budget_stop_reason": stop_reason,
-        "coverage_self_check": self_check_done,
     }
-    return final_text, stats
