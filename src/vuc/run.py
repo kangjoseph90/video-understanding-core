@@ -11,7 +11,7 @@ from vuc.advanced_asr import AdvancedASRProvider
 from vuc.agent import REPORT_SCHEMA, build_index_context, run_agent_loop
 from vuc.cache import VideoCache, sha256_file
 from vuc.config import AppConfig
-from vuc.frames import create_montages, extract_sampled_frames
+from vuc.frames import create_montages, extract_sampled_frames, montage_cell_size
 from vuc.indexer import Transcriber
 from vuc.llm import (
     ChatCompletionsClient,
@@ -75,7 +75,8 @@ def _baseline_full_images(
     metadata_path = root / "result.json"
     settings = {
         "interval_s": config.frames.baseline_full_interval_s,
-        "resolution": config.frames.baseline_full_resolution,
+        "montage_width": config.frames.montage_width,
+        "montage_height": config.frames.montage_height,
         "n": config.frames.montage_n,
         "jpeg_quality": config.frames.jpeg_quality,
     }
@@ -84,19 +85,26 @@ def _baseline_full_images(
         paths = [Path(path) for path in data.get("image_paths", [])]
         if data.get("settings") == settings and all(path.exists() for path in paths):
             return paths
+    cell_width, _ = montage_cell_size(
+        config.frames.montage_width,
+        config.frames.montage_height,
+        config.frames.montage_n,
+    )
     frames = extract_sampled_frames(
         video_path,
         root / "frames",
         start_s=0,
         end_s=index.video.duration_s,
         fps=1 / config.frames.baseline_full_interval_s,
-        resolution=config.frames.baseline_full_resolution,
+        resolution=cell_width,
         jpeg_quality=config.frames.jpeg_quality,
     )
     montages = create_montages(
         frames,
         root / "montages",
         n=config.frames.montage_n,
+        width=config.frames.montage_width,
+        height=config.frames.montage_height,
         jpeg_quality=config.frames.jpeg_quality,
     )
     cache.write_json(

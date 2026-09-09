@@ -227,7 +227,11 @@ def test_tool_schemas_and_montage_limit(tmp_path: Path, monkeypatch) -> None:
     ]
     assert schemas[0]["function"]["parameters"]["properties"]["fps"] == {
         "type": "number",
-        "exclusiveMinimum": 0,
+        "enum": [0.1, 0.2, 0.5, 1.0, 2.0],
+    }
+    assert schemas[0]["function"]["parameters"]["properties"]["n"] == {
+        "type": "integer",
+        "enum": [1, 2, 3, 4, 6],
     }
     execution = service.execute(
         "view_frames", {"start_s": 0, "end_s": 100, "fps": 2, "n": 3}
@@ -243,8 +247,8 @@ def test_view_frames_uses_agent_selected_grid(tmp_path: Path, monkeypatch) -> No
     def fake_frames(*_args, **_kwargs):
         return [FrameArtifact(path=f"frame-{i}.jpg", timestamp_s=i) for i in range(20)]
 
-    def fake_montages(frames, _output_dir, *, n, jpeg_quality):
-        del frames, jpeg_quality
+    def fake_montages(frames, _output_dir, *, n, width, height, jpeg_quality):
+        del frames, width, height, jpeg_quality
         seen["n"] = n
         return [Path("one.jpg"), Path("two.jpg"), Path("three.jpg")]
 
@@ -257,6 +261,15 @@ def test_view_frames_uses_agent_selected_grid(tmp_path: Path, monkeypatch) -> No
     assert result.data["frame_count"] == 20
     assert result.data["montage_count"] == 3
     assert len(result.image_paths) == 3
+
+
+def test_view_frames_rejects_values_outside_enums(tmp_path: Path, monkeypatch) -> None:
+    service, _ = make_service(tmp_path, monkeypatch)
+
+    with pytest.raises(ToolError, match="fps must be one of"):
+        service.view_frames(0, 10, 0.3, 3)
+    with pytest.raises(ToolError, match="n must be one of"):
+        service.view_frames(0, 10, 0.5, 5)
 
 
 def test_full_index_is_never_downsampled() -> None:

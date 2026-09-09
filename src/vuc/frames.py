@@ -4,7 +4,7 @@ import math
 import subprocess
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from vuc.config import FramesConfig
 from vuc.media import MediaError, require_binary
@@ -62,15 +62,26 @@ def extract_initial_frames(
     duration_s: float,
     config: FramesConfig,
 ) -> list[FrameArtifact]:
+    cell_width, _ = montage_cell_size(
+        config.montage_width, config.montage_height, config.montage_n
+    )
     return extract_sampled_frames(
         video_path,
         output_dir,
         start_s=0,
         end_s=duration_s,
         fps=1 / config.index_interval_s,
-        resolution=config.index_resolution,
+        resolution=cell_width,
         jpeg_quality=config.jpeg_quality,
     )
+
+
+def montage_cell_size(width: int, height: int, n: int) -> tuple[int, int]:
+    if n < 1:
+        raise ValueError("montage grid size must be positive")
+    if width % n or height % n:
+        raise ValueError("montage dimensions must be divisible by grid size")
+    return width // n, height // n
 
 
 def extract_sampled_frames(
@@ -125,12 +136,15 @@ def create_montages(
     output_dir: Path,
     *,
     n: int,
+    width: int,
+    height: int,
     jpeg_quality: int,
 ) -> list[Path]:
     if not frames:
         return []
     if n < 1:
         raise ValueError("montage grid size must be positive")
+    tile_width, tile_height = montage_cell_size(width, height, n)
     group_size = n * n
     output_dir.mkdir(parents=True, exist_ok=True)
     for old_montage in output_dir.glob("montage-*.jpg"):
@@ -139,14 +153,20 @@ def create_montages(
     montages: list[Path] = []
     for group_index in range(math.ceil(len(frames) / group_size)):
         group = frames[group_index * group_size : (group_index + 1) * group_size]
-        with Image.open(group[0].path) as first:
-            tile_width, tile_height = first.size
-        canvas = Image.new("RGB", (tile_width * n, tile_height * n), color=(18, 18, 18))
+        # Keep the requested cell size, but do not pay for empty cells in the final group.
+        actual_n = math.ceil(math.sqrt(len(group)))
+        canvas = Image.new(
+            "RGB", (tile_width * actual_n, tile_height * actual_n), color=(18, 18, 18)
+        )
         for cell_index, artifact in enumerate(group):
             with Image.open(artifact.path) as frame:
-                tile = frame.convert("RGB")
-            x = (cell_index % n) * tile_width
-            y = (cell_index // n) * tile_height
+                tile = ImageOps.contain(
+                    frame.convert("RGB"),
+                    (tile_width, tile_height),
+                    method=Image.Resampling.LANCZOS,
+                )
+            x = (cell_index % actual_n) * tile_width + (tile_width - tile.width) // 2
+            y = (cell_index // actual_n) * tile_height + (tile_height - tile.height) // 2
             canvas.paste(tile, (x, y))
         montage_path = output_dir / f"montage-{group_index + 1:04d}.jpg"
         canvas.save(montage_path, "JPEG", quality=jpeg_quality, optimize=True)

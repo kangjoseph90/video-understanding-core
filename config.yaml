@@ -20,9 +20,9 @@ indexer:
 
 frames:
   index_interval_s: 15
-  index_resolution: 256
   baseline_full_interval_s: 1
-  baseline_full_resolution: 512
+  montage_width: 1344
+  montage_height: 756
   montage_n: 3
   jpeg_quality: 88
 
@@ -56,5 +56,6 @@ agent:
 
 tools:
   view_frames:
-    resolution: 512
+    fps_options: [0.1, 0.2, 0.5, 1.0, 2.0]
+    grid_options: [1, 2, 3, 4, 6]
     max_montages_per_call: 16

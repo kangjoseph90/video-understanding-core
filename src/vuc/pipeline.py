@@ -68,7 +68,8 @@ def _load_cached(path: Path) -> VideoIndex:
 def _frame_config(config: AppConfig) -> dict[str, float | int]:
     return {
         "interval_s": config.frames.index_interval_s,
-        "resolution": config.frames.index_resolution,
+        "montage_width": config.frames.montage_width,
+        "montage_height": config.frames.montage_height,
         "montage_n": config.frames.montage_n,
         "jpeg_quality": config.frames.jpeg_quality,
     }
@@ -132,6 +133,8 @@ def index_video(
             frames,
             cache.montages_dir,
             n=config.frames.montage_n,
+            width=config.frames.montage_width,
+            height=config.frames.montage_height,
             jpeg_quality=config.frames.jpeg_quality,
         )
         trace.write(
@@ -139,7 +142,8 @@ def index_video(
             event="initial_frames",
             arguments={
                 "interval_s": config.frames.index_interval_s,
-                "resolution": config.frames.index_resolution,
+                "montage_width": config.frames.montage_width,
+                "montage_height": config.frames.montage_height,
                 "montage_n": config.frames.montage_n,
             },
             result_summary={"frames": len(frames), "montages": len(montages)},

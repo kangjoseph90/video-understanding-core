@@ -12,7 +12,7 @@ from typing import Any
 from vuc.advanced_asr import AdvancedASRProvider, create_advanced_asr
 from vuc.cache import VideoCache
 from vuc.config import AppConfig
-from vuc.frames import create_montages, extract_sampled_frames
+from vuc.frames import create_montages, extract_sampled_frames, montage_cell_size
 from vuc.media import extract_audio_segment
 from vuc.models import VideoIndex
 from vuc.trace import TraceWriter
@@ -30,8 +30,8 @@ VIEW_FRAMES_SCHEMA = {
             "properties": {
                 "start_s": {"type": "number"},
                 "end_s": {"type": "number"},
-                "fps": {"type": "number", "exclusiveMinimum": 0},
-                "n": {"type": "integer", "minimum": 1},
+                "fps": {"type": "number", "enum": [0.1, 0.2, 0.5, 1.0, 2.0]},
+                "n": {"type": "integer", "enum": [1, 2, 3, 4, 6]},
             },
             "required": ["start_s", "end_s", "fps", "n"],
             "additionalProperties": False,
@@ -138,6 +138,9 @@ class ToolService:
             f"At most {self.config.view_frames.max_montages_per_call} montage images "
             "may be returned per call."
         )
+        properties = frames["function"]["parameters"]["properties"]
+        properties["fps"]["enum"] = list(self.config.view_frames.fps_options)
+        properties["n"]["enum"] = list(self.config.view_frames.grid_options)
         transcript = deepcopy(TRANSCRIBE_SEGMENT_SCHEMA)
         transcript["function"]["description"] = (
             "Transcribe a selected interval with the advanced ASR provider. "
@@ -172,10 +175,14 @@ class ToolService:
             n_number = float(n)
         except (TypeError, ValueError) as exc:
             raise ToolError("fps and n must be numeric") from exc
-        if not math.isfinite(fps_value) or fps_value <= 0:
-            raise ToolError("fps must be a positive finite number")
-        if not math.isfinite(n_number) or n_value < 1 or n_value != n_number:
-            raise ToolError("n must be a positive integer")
+        if not math.isfinite(fps_value) or fps_value not in self.config.view_frames.fps_options:
+            raise ToolError(f"fps must be one of {self.config.view_frames.fps_options}")
+        if (
+            not math.isfinite(n_number)
+            or n_value != n_number
+            or n_value not in self.config.view_frames.grid_options
+        ):
+            raise ToolError(f"n must be one of {self.config.view_frames.grid_options}")
         frame_count = math.ceil((end - start) * fps_value)
         montage_count = math.ceil(frame_count / (n_value * n_value))
         maximum = self.config.view_frames.max_montages_per_call
@@ -189,7 +196,8 @@ class ToolService:
             "end_s": end,
             "fps": fps_value,
             "n": n_value,
-            "resolution": self.config.view_frames.resolution,
+            "montage_width": self.config.frames.montage_width,
+            "montage_height": self.config.frames.montage_height,
         }
         call_dir = self.cache.tool_frames_dir / self._key("view_frames", arguments)
         metadata_path = call_dir / "result.json"
@@ -198,19 +206,26 @@ class ToolService:
             images = tuple(Path(path) for path in metadata.pop("image_paths"))
             return ToolExecution(data={**metadata, "cache_hit": True}, image_paths=images)
 
+        cell_width, _ = montage_cell_size(
+            self.config.frames.montage_width,
+            self.config.frames.montage_height,
+            n_value,
+        )
         frames = extract_sampled_frames(
             self.video_path,
             call_dir / "frames",
             start_s=start,
             end_s=end,
             fps=fps_value,
-            resolution=self.config.view_frames.resolution,
+            resolution=cell_width,
             jpeg_quality=self.config.frames.jpeg_quality,
         )
         montages = create_montages(
             frames,
             call_dir / "montages",
             n=n_value,
+            width=self.config.frames.montage_width,
+            height=self.config.frames.montage_height,
             jpeg_quality=self.config.frames.jpeg_quality,
         )
         images = tuple(montages)

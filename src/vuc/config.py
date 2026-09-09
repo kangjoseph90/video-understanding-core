@@ -39,9 +39,9 @@ class IndexerConfig:
 @dataclass(frozen=True)
 class FramesConfig:
     index_interval_s: float
-    index_resolution: int
     baseline_full_interval_s: float
-    baseline_full_resolution: int
+    montage_width: int
+    montage_height: int
     montage_n: int
     jpeg_quality: int
 
@@ -89,7 +89,8 @@ class AgentConfig:
 
 @dataclass(frozen=True)
 class ViewFramesConfig:
-    resolution: int
+    fps_options: tuple[float, ...]
+    grid_options: tuple[int, ...]
     max_montages_per_call: int
 
 
@@ -166,9 +167,9 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         ),
         frames=FramesConfig(
             index_interval_s=float(frames["index_interval_s"]),
-            index_resolution=int(frames["index_resolution"]),
             baseline_full_interval_s=float(frames["baseline_full_interval_s"]),
-            baseline_full_resolution=int(frames["baseline_full_resolution"]),
+            montage_width=int(frames["montage_width"]),
+            montage_height=int(frames["montage_height"]),
             montage_n=int(frames["montage_n"]),
             jpeg_quality=int(frames["jpeg_quality"]),
         ),
@@ -202,7 +203,8 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             wall_clock_s=float(agent["wall_clock_s"]),
         ),
         view_frames=ViewFramesConfig(
-            resolution=int(view_frames["resolution"]),
+            fps_options=tuple(float(value) for value in view_frames["fps_options"]),
+            grid_options=tuple(int(value) for value in view_frames["grid_options"]),
             max_montages_per_call=int(view_frames["max_montages_per_call"]),
         ),
     )
@@ -212,6 +214,22 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         )
     if result.frames.montage_n < 1:
         raise ValueError("frames.montage_n must be positive")
+    if result.frames.montage_width < 1 or result.frames.montage_height < 1:
+        raise ValueError("frames montage dimensions must be positive")
+    if not result.view_frames.fps_options or any(
+        value <= 0 for value in result.view_frames.fps_options
+    ):
+        raise ValueError("tools.view_frames.fps_options must contain positive values")
+    if not result.view_frames.grid_options or any(
+        value < 1 for value in result.view_frames.grid_options
+    ):
+        raise ValueError("tools.view_frames.grid_options must contain positive integers")
+    grids = (*result.view_frames.grid_options, result.frames.montage_n)
+    if any(
+        result.frames.montage_width % n or result.frames.montage_height % n
+        for n in grids
+    ):
+        raise ValueError("montage dimensions must be divisible by every configured grid size")
     if result.view_frames.max_montages_per_call < 1:
         raise ValueError("tools.view_frames.max_montages_per_call must be positive")
     if result.advanced_asr.provider not in {"local", "cloud"}:

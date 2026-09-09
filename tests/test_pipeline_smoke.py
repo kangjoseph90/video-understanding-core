@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from vuc.config import load_config
 from vuc.models import Segment
@@ -76,10 +77,13 @@ def test_index_video_creates_cache_frames_montage_and_trace(tmp_path: Path) -> N
     assert len(index.montages) == 1
     assert index.frame_config == {
         "interval_s": 1.0,
-        "resolution": 256,
+        "montage_width": 1344,
+        "montage_height": 756,
         "montage_n": 3,
         "jpeg_quality": 88,
     }
+    with Image.open(index.montages[0]) as montage:
+        assert montage.size == (896, 504)
     assert "<Speech>" in cache.index_text_path.read_text(encoding="utf-8")
     trace = [json.loads(line) for line in cache.trace_path.read_text().splitlines()]
     assert {item["event"] for item in trace} == {

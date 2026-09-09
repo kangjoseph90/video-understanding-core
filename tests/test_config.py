@@ -15,12 +15,15 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.indexer.device == "cpu"
     assert config.indexer.hub == "hf"
     assert config.frames.montage_n == 3
+    assert (config.frames.montage_width, config.frames.montage_height) == (1344, 756)
     assert config.frames.index_interval_s == 15
     assert config.frames.baseline_full_interval_s == 1
     assert config.advanced_asr.provider == "local"
     assert config.advanced_asr.local.max_segment_s == 180
     assert config.advanced_asr.cloud.max_segment_s == 600
     assert config.view_frames.max_montages_per_call == 16
+    assert config.view_frames.fps_options == (0.1, 0.2, 0.5, 1.0, 2.0)
+    assert config.view_frames.grid_options == (1, 2, 3, 4, 6)
     assert config.vision_llm.input_cost_per_million_usd == 0
     assert config.vision_llm.output_cost_per_million_usd == 0
 
