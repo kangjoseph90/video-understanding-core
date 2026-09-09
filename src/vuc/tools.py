@@ -12,7 +12,12 @@ from typing import Any
 from vuc.advanced_asr import AdvancedASRProvider, create_advanced_asr
 from vuc.cache import VideoCache
 from vuc.config import AppConfig
-from vuc.frames import create_montages, extract_sampled_frames, montage_cell_size
+from vuc.frames import (
+    create_montages,
+    extract_sampled_frames,
+    format_span,
+    montage_cell_size,
+)
 from vuc.media import extract_audio_segment
 from vuc.models import VideoIndex
 from vuc.trace import TraceWriter
@@ -255,6 +260,14 @@ class ToolService:
         }
         return next(iter(languages)) if len(languages) == 1 else None
 
+    @staticmethod
+    def _transcript_lines(sentences: list[dict[str, Any]]) -> str:
+        return "\n".join(
+            f"[{format_span(sentence['start_s'], sentence['end_s'])}] {sentence['text']}"
+            for sentence in sentences
+            if str(sentence.get("text") or "").strip()
+        )
+
     def _transcribe(self, start_s: Any, end_s: Any, *, maximum_s: float) -> ToolExecution:
         start, end = self._range(start_s, end_s)
         duration = end - start
@@ -285,18 +298,22 @@ class ToolService:
         )
         asr_elapsed = time.monotonic() - wall_started
         data = result.to_dict()
+        sentences = [
+            {
+                **sentence.to_dict(),
+                "start_s": sentence.start_s + start,
+                "end_s": sentence.end_s + start,
+            }
+            for sentence in result.sentences
+        ]
         data.update(
             {
                 "start_s": start,
                 "end_s": end,
-                "sentences": [
-                    {
-                        **sentence.to_dict(),
-                        "start_s": sentence.start_s + start,
-                        "end_s": sentence.end_s + start,
-                    }
-                    for sentence in result.sentences
-                ],
+                "sentences": sentences,
+                # Same "[start-end] text" shape the index uses, so every transcript
+                # the model reads is formatted identically.
+                "transcript": self._transcript_lines(sentences),
                 "language_hint": language_hint,
                 "cache_hit": False,
             }

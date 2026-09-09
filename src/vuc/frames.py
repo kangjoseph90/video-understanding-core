@@ -17,6 +17,16 @@ def format_timestamp(timestamp_s: float) -> str:
     return f"{minutes:02d}:{seconds:02d}"
 
 
+def format_instant(timestamp_s: float) -> str:
+    """Every timestamp shown to the model is a bare second count."""
+    return str(max(0, int(timestamp_s)))
+
+
+def format_span(start_s: float, end_s: float) -> str:
+    """Interval as bare second counts, matching format_instant."""
+    return f"{max(0, int(start_s))}-{max(0, int(end_s))}"
+
+
 def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = (
         "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
@@ -32,7 +42,7 @@ def _burn_in(image_path: Path, timestamp_s: float, quality: int) -> None:
     with Image.open(image_path) as source:
         image = source.convert("RGB")
     draw = ImageDraw.Draw(image)
-    label = format_timestamp(timestamp_s)
+    label = format_instant(timestamp_s)
     font = _font(max(14, image.width // 22))
     box = draw.textbbox((0, 0), label, font=font, stroke_width=1)
     padding = max(4, image.width // 80)

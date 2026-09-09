@@ -8,7 +8,7 @@ from pathlib import Path
 
 from vuc.cache import VideoCache, new_run_id, sha256_file
 from vuc.config import AppConfig
-from vuc.frames import create_montages, extract_initial_frames, format_timestamp
+from vuc.frames import create_montages, extract_initial_frames, format_span
 from vuc.indexer import SenseVoiceTranscriber, Transcriber
 from vuc.media import extract_audio, probe_duration
 from vuc.models import FrameArtifact, Segment, VideoIndex, VideoMetadata
@@ -31,8 +31,7 @@ def _text_index(segments: list[Segment]) -> str:
         tags = [segment.language, segment.emotion or "", *segment.events]
         tag_text = " ".join(f"<{tag}>" for tag in tags if tag and tag != "unknown")
         lines.append(
-            f"[{format_timestamp(segment.start)}–{format_timestamp(segment.end)}] "
-            f"{tag_text} {segment.text}".rstrip()
+            f"[{format_span(segment.start, segment.end)}] {tag_text} {segment.text}".rstrip()
         )
     return "\n".join(lines) + ("\n" if lines else "")
 
@@ -110,6 +109,8 @@ def index_video(
         size_bytes=video_path.stat().st_size,
     )
 
+    timings: dict[str, float] = {}
+
     def index_audio() -> list[Segment]:
         started = time.monotonic()
         extract_audio(video_path, cache.audio_path)
@@ -122,6 +123,7 @@ def index_video(
             result_summary={"segments": len(segments), "audio_path": str(cache.audio_path)},
             duration_ms=round((time.monotonic() - started) * 1000),
         )
+        timings["sensevoice_s"] = round(time.monotonic() - started, 3)
         return segments
 
     def index_frames() -> tuple[list[FrameArtifact], list[Path]]:
@@ -153,13 +155,16 @@ def index_video(
             result_summary={"frames": len(frames), "montages": len(montages)},
             duration_ms=round((time.monotonic() - started) * 1000),
         )
+        timings["frames_s"] = round(time.monotonic() - started, 3)
         return frames, montages
 
+    index_started = time.monotonic()
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="vuc-index") as executor:
         audio_future = executor.submit(index_audio)
         frames_future = executor.submit(index_frames)
         segments = audio_future.result()
         frames, montages = frames_future.result()
+    timings["total_s"] = round(time.monotonic() - index_started, 3)
 
     index = VideoIndex(
         schema_version=2,
@@ -172,6 +177,10 @@ def index_video(
             "hub": config.indexer.hub,
             "model": config.indexer.model,
             "vad_model": config.indexer.vad_model,
+            # Persisted so later runs that hit the cache can still report the cold cost.
+            "cold_sensevoice_s": timings.get("sensevoice_s", 0.0),
+            "cold_frames_s": timings.get("frames_s", 0.0),
+            "cold_total_s": timings.get("total_s", 0.0),
         },
         frame_config=_frame_config(config),
     )
@@ -184,7 +193,9 @@ def index_video(
         result_summary={
             "index_json": str(cache.index_json_path),
             "index_text": str(cache.index_text_path),
+            "cold_sensevoice_s": timings.get("sensevoice_s", 0.0),
+            "cold_frames_s": timings.get("frames_s", 0.0),
         },
-        duration_ms=0,
+        duration_ms=round(timings.get("total_s", 0.0) * 1000),
     )
     return index, cache, False, trace_path

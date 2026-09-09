@@ -22,23 +22,51 @@ class ChatResult:
     message: dict[str, Any]
     usage: dict[str, Any]
     latency_s: float
+    attempts: int = 1
 
 
 def input_token_count(usage: dict[str, Any]) -> int:
+    """Total prompt tokens. Providers include cached tokens in this figure."""
     return int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0)
+
+
+def cached_input_token_count(usage: dict[str, Any]) -> int:
+    details = usage.get("prompt_tokens_details")
+    if isinstance(details, dict):
+        return int(details.get("cached_tokens", 0) or 0)
+    return int(usage.get("cached_tokens", 0) or 0)
 
 
 def output_token_count(usage: dict[str, Any]) -> int:
     return int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0)
 
 
+def reasoning_token_count(usage: dict[str, Any]) -> int:
+    """Reasoning tokens, already counted inside the completion total."""
+    details = usage.get("completion_tokens_details")
+    if isinstance(details, dict):
+        return int(details.get("reasoning_tokens", 0) or 0)
+    return 0
+
+
 def estimate_vlm_cost_usd(
-    config: VisionLLMConfig, input_tokens: int, output_tokens: int
+    config: VisionLLMConfig,
+    input_tokens: int,
+    output_tokens: int,
+    cached_input_tokens: int = 0,
 ) -> float | None:
-    if config.input_cost_per_million_usd <= 0 and config.output_cost_per_million_usd <= 0:
+    rates = (
+        config.input_cost_per_million_usd,
+        config.cached_input_cost_per_million_usd,
+        config.output_cost_per_million_usd,
+    )
+    if all(rate <= 0 for rate in rates):
         return None
+    cached = max(0, min(cached_input_tokens, input_tokens))
+    uncached = input_tokens - cached
     return (
-        input_tokens * config.input_cost_per_million_usd
+        uncached * config.input_cost_per_million_usd
+        + cached * config.cached_input_cost_per_million_usd
         + output_tokens * config.output_cost_per_million_usd
     ) / 1_000_000
 
@@ -110,6 +138,7 @@ class ChatCompletionsClient:
                     message=message,
                     usage=usage,
                     latency_s=time.monotonic() - started,
+                    attempts=attempt + 1,
                 )
             except (httpx.HTTPError, KeyError, TypeError, ValueError, LLMError) as exc:
                 last_error = exc

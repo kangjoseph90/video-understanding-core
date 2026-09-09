@@ -131,7 +131,14 @@ def test_run_explicit_mode_ignores_short_duration(
     assert report["meta"]["mode"] == mode
     assert report["meta"]["cumulative_input_tokens"] == 100
     assert report["meta"]["output_tokens"] == 50
-    assert report["meta"]["vlm_cost_usd"] is None
+    # 100 input @ $0.15/1M + 50 output @ $0.50/1M
+    assert report["meta"]["vlm_cost_usd"] == 4e-05
+    assert report["meta"]["cached_input_tokens"] == 0
+    if mode == "baseline_full":
+        # baseline_full never builds an index, so it has no cold indexing cost.
+        assert report["meta"]["index_cold_s"] is None
+    else:
+        assert report["meta"]["index_cold_s"] >= 0
     assert provider.calls == expected_asr_calls
     assert report["sections"][0]["citations"][0] == {
         "claim": "Pattern",

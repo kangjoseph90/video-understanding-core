@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 
 from vuc.advanced_asr import ASRResult, TranscriptSentence
-from vuc.agent import AgentBudget, build_index_context, run_agent_loop, system_prompt
+from vuc.agent import (
+    AgentBudget,
+    _index_line,
+    build_index_context,
+    build_prompt_body,
+    run_agent_loop,
+    system_prompt,
+)
 from vuc.cache import VideoCache
 from vuc.config import load_config
 from vuc.llm import ChatResult
@@ -133,6 +140,10 @@ def test_full_baseline_splits_on_provider_limit(tmp_path: Path, monkeypatch) -> 
 
     assert provider.calls == 4
     assert len(transcript.splitlines()) == 4
+    # baseline_full used to hand the model an untimestamped blob; every line now
+    # carries the same "[start-end] text" span the index uses.
+    assert transcript.splitlines()[0] == "[1-2] accurate text"
+    assert transcript.splitlines()[1] == "[181-182] accurate text"
 
 
 def test_advanced_asr_absolute_timestamps_and_cache(tmp_path: Path, monkeypatch) -> None:
@@ -141,6 +152,7 @@ def test_advanced_asr_absolute_timestamps_and_cache(tmp_path: Path, monkeypatch)
     first = service.transcribe_segment(10, 20)
     second = service.transcribe_segment(10, 20)
 
+    assert first.data["transcript"] == "[11-12] accurate text"
     assert first.data["sentences"][0]["start_s"] == 11
     assert first.data["sentences"][0]["end_s"] == 12
     assert first.data["cache_hit"] is False
@@ -168,7 +180,7 @@ def test_system_prompt_makes_tools_optional() -> None:
     assert "transcribe_segment" in prompt
     assert "view_frames" in prompt
     assert "프레임에 보이는 텍스트" in prompt
-    assert "[mm:ss]" in prompt
+    assert "모든 시각은 초 단위 숫자다" in prompt
 
 
 def test_asr_is_excluded_from_agent_budget() -> None:
@@ -327,3 +339,75 @@ def test_report_has_only_plain_citation_fields() -> None:
         {"claim": "claim", "start_s": 1, "end_s": 2}
     ]
     assert report["meta"] == {"duration_s": 100}
+
+
+def test_normalize_report_clamps_timestamps_to_video_duration() -> None:
+    report = normalize_report(
+        {
+            "title": "t",
+            "sections": [
+                {
+                    "title": "tail",
+                    "start_s": 600,
+                    "end_s": 1140,
+                    "citations": [
+                        {"claim": "outro", "start_s": 1113, "end_s": 1138},
+                        {"claim": "fine", "start_s": 680, "end_s": 690},
+                    ],
+                }
+            ],
+            "key_moments": [{"title": "end", "timestamp_s": 1200}],
+        },
+        meta={"duration_s": 698.5},
+    )
+
+    section = report["sections"][0]
+    assert section["start_s"] == 600
+    assert section["end_s"] == 698
+    assert section["citations"] == [
+        {"claim": "outro", "start_s": 698, "end_s": 698},
+        {"claim": "fine", "start_s": 680, "end_s": 690},
+    ]
+    assert report["key_moments"][0]["timestamp_s"] == 698
+
+
+def test_normalize_report_clamps_negative_values_and_keeps_end_after_start() -> None:
+    report = normalize_report(
+        {
+            "title": "t",
+            "sections": [
+                {
+                    "title": "intro",
+                    "start_s": -30,
+                    "end_s": 40,
+                    "citations": [{"claim": "open", "start_s": 20, "end_s": 5}],
+                }
+            ],
+        },
+        meta={"duration_s": 100.0},
+    )
+
+    section = report["sections"][0]
+    assert section["start_s"] == 0
+    assert section["citations"][0] == {"claim": "open", "start_s": 20, "end_s": 20}
+
+
+def test_index_line_labels_timestamps_as_bare_seconds() -> None:
+    line = _index_line(
+        Segment(start=673.0, end=698.0, text="마무리 인사", language="ko")
+    )
+
+    assert line == "[673-698] <ko> 마무리 인사"
+
+
+def test_every_mode_shares_the_same_prompt_preamble() -> None:
+    body = build_prompt_body(
+        "핵심 요약", 698.474, "SenseVoice 전체 인덱스", "[0-18] <ko> 안녕하세요"
+    )
+
+    assert body == (
+        "사용자 쿼리:\n핵심 요약\n\n"
+        "영상 길이: 698\n"
+        "SenseVoice 전체 인덱스 (구간 표기는 [시작-끝], 단위는 초):\n"
+        "[0-18] <ko> 안녕하세요"
+    )

@@ -60,6 +60,7 @@ class VisionLLMConfig:
     max_retries: int
     max_output_tokens: int
     input_cost_per_million_usd: float
+    cached_input_cost_per_million_usd: float
     output_cost_per_million_usd: float
 
 
@@ -197,6 +198,9 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             max_retries=int(vision_llm["max_retries"]),
             max_output_tokens=int(vision_llm["max_output_tokens"]),
             input_cost_per_million_usd=float(vision_llm["input_cost_per_million_usd"]),
+            cached_input_cost_per_million_usd=float(
+                vision_llm["cached_input_cost_per_million_usd"]
+            ),
             output_cost_per_million_usd=float(vision_llm["output_cost_per_million_usd"]),
         ),
         advanced_asr=AdvancedASRConfig(
@@ -260,6 +264,7 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         raise ValueError("asr.advanced.provider must be local or cloud")
     if (
         result.vision_llm.input_cost_per_million_usd < 0
+        or result.vision_llm.cached_input_cost_per_million_usd < 0
         or result.vision_llm.output_cost_per_million_usd < 0
     ):
         raise ValueError("vision_llm token costs must not be negative")

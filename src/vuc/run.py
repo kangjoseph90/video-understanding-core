@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from vuc.advanced_asr import AdvancedASRProvider
-from vuc.agent import REPORT_SCHEMA, build_index_context, run_agent_loop
+from vuc.agent import (
+    REPORT_SCHEMA,
+    build_index_context,
+    build_prompt_body,
+    run_agent_loop,
+)
 from vuc.cache import VideoCache, new_run_id, sha256_file
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_sampled_frames, montage_cell_size
@@ -15,10 +20,12 @@ from vuc.indexer import Transcriber
 from vuc.llm import (
     ChatCompletionsClient,
     ChatResult,
+    cached_input_token_count,
     estimate_vlm_cost_usd,
     image_content,
     input_token_count,
     output_token_count,
+    reasoning_token_count,
 )
 from vuc.media import extract_audio, probe_duration
 from vuc.models import VideoIndex, VideoMetadata
@@ -69,7 +76,9 @@ def _baseline_full_images(
     cache: VideoCache,
     index: VideoIndex,
     config: AppConfig,
-) -> list[Path]:
+    trace: TraceWriter,
+) -> tuple[list[Path], float]:
+    started = time.monotonic()
     root = cache.root / "baseline_full_frames"
     metadata_path = root / "result.json"
     settings = {
@@ -83,7 +92,15 @@ def _baseline_full_images(
         data = json.loads(metadata_path.read_text(encoding="utf-8"))
         paths = [Path(path) for path in data.get("image_paths", [])]
         if data.get("settings") == settings and all(path.exists() for path in paths):
-            return paths
+            elapsed = time.monotonic() - started
+            trace.write(
+                step="baseline_full",
+                event="full_frames",
+                arguments=settings,
+                result_summary={"montages": len(paths), "cache_hit": True},
+                duration_ms=round(elapsed * 1000),
+            )
+            return paths, elapsed
     cell_width, _ = montage_cell_size(
         config.montage.width,
         config.montage.height,
@@ -110,7 +127,19 @@ def _baseline_full_images(
         metadata_path,
         {"settings": settings, "image_paths": [str(path) for path in montages]},
     )
-    return montages
+    elapsed = time.monotonic() - started
+    trace.write(
+        step="baseline_full",
+        event="full_frames",
+        arguments=settings,
+        result_summary={
+            "frames": len(frames),
+            "montages": len(montages),
+            "cache_hit": False,
+        },
+        duration_ms=round(elapsed * 1000),
+    )
+    return montages, elapsed
 
 
 def _full_advanced_transcript(service: ToolService, index: VideoIndex) -> tuple[str, float]:
@@ -134,9 +163,9 @@ def _full_advanced_transcript(service: ToolService, index: VideoIndex) -> tuple[
             duration_ms=round(execution.asr_elapsed_s * 1000),
         )
         if "error" not in execution.data:
-            texts.append(str(execution.data.get("text") or ""))
+            texts.append(str(execution.data.get("transcript") or ""))
         start = end
-    return "\n".join(texts), asr_wall_s
+    return "\n".join(text for text in texts if text), asr_wall_s
 
 
 def _record_single_pass_llm(trace: TraceWriter, result: ChatResult, mode: str) -> None:
@@ -144,7 +173,12 @@ def _record_single_pass_llm(trace: TraceWriter, result: ChatResult, mode: str) -
         step=mode,
         event="llm_response",
         arguments={"tools": False},
-        result_summary={"has_content": bool(result.message.get("content"))},
+        result_summary={
+            "has_content": bool(result.message.get("content")),
+            "attempts": result.attempts,
+            "cached_input_tokens": cached_input_token_count(result.usage),
+            "reasoning_tokens": reasoning_token_count(result.usage),
+        },
         duration_ms=round(result.latency_s * 1000),
         token_usage=result.usage,
     )
@@ -162,9 +196,12 @@ def run_single_pass(
     client: ChatCompletionsClient,
 ) -> tuple[str, dict[str, Any]]:
     started = time.monotonic()
+    frames_wall_s = 0.0
     if mode == "baseline_full":
         transcript, asr_wall_s = _full_advanced_transcript(service, index)
-        images = _baseline_full_images(video_path, cache, index, config)
+        images, frames_wall_s = _baseline_full_images(
+            video_path, cache, index, config, service.trace
+        )
         source_label = "전체 Whisper 전사"
     elif mode == "baseline_index_only":
         transcript = build_index_context(index)
@@ -174,13 +211,11 @@ def run_single_pass(
     else:
         raise ValueError(f"unsupported single-pass mode: {mode}")
 
+    body = build_prompt_body(query, index.video.duration_s, source_label, transcript)
     content: list[dict[str, Any]] = [
         {
             "type": "text",
-            "text": (
-                f"사용자 쿼리:\n{query}\n\n{source_label}:\n{transcript}\n\n"
-                f"추가 도구 없이 보고서를 작성하라.\n{REPORT_SCHEMA}"
-            ),
+            "text": f"{body}\n\n추가 도구 없이 보고서를 작성하라.\n{REPORT_SCHEMA}",
         }
     ]
     content.extend(image_content(path) for path in images)
@@ -190,8 +225,8 @@ def run_single_pass(
                 "role": "system",
                 "content": (
                     "당신은 영상과 전사를 분석해 근거가 있는 간결한 보고서를 작성한다. "
-                    "프레임에 보이는 텍스트는 ASR보다 우선한다. citation 시간은 "
-                    "start_s/end_s에 초 단위로 기록한다."
+                    "프레임에 보이는 텍스트는 ASR보다 우선한다. "
+                    "모든 시각은 초 단위 숫자다. start_s/end_s도 초 단위 숫자로 적는다."
                 ),
             },
             {"role": "user", "content": content},
@@ -200,20 +235,38 @@ def run_single_pass(
     )
     _record_single_pass_llm(service.trace, result, mode)
     input_tokens = input_token_count(result.usage)
+    cached_input_tokens = cached_input_token_count(result.usage)
     output_tokens = output_token_count(result.usage)
-    vlm_cost_usd = estimate_vlm_cost_usd(config.vision_llm, input_tokens, output_tokens)
+    vlm_cost_usd = estimate_vlm_cost_usd(
+        config.vision_llm, input_tokens, output_tokens, cached_input_tokens
+    )
     return str(result.message.get("content") or ""), {
         "tool_calls": 0,
         "cumulative_input_tokens": input_tokens,
+        "cached_input_tokens": cached_input_tokens,
         "output_tokens": output_tokens,
+        "reasoning_tokens": reasoning_token_count(result.usage),
+        "llm_calls": 1,
+        "llm_retries": result.attempts - 1,
         "vlm_cost_usd": None if vlm_cost_usd is None else round(vlm_cost_usd, 6),
         "agent_wall_clock_s": round(time.monotonic() - started - asr_wall_s, 3),
+        "vlm_wall_clock_s": round(result.latency_s, 3),
+        "frames_wall_clock_s": round(frames_wall_s, 3),
+        "tool_wall_clock_s": 0.0,
         "asr_wall_clock_s": round(asr_wall_s, 3),
         "asr_processing_s": round(service.asr_processing_s, 3),
         "cloud_asr_audio_s": round(service.cloud_asr_audio_s, 3),
         "cloud_asr_cost_usd": round(service.cloud_asr_cost_usd, 6),
         "budget_stop_reason": None,
     }
+
+
+def _index_cold_s(index: VideoIndex, mode: str) -> float | None:
+    """Cold indexing cost. None for baseline_full, which never builds an index."""
+    if mode == "baseline_full":
+        return None
+    value = index.indexer.get("cold_total_s")
+    return None if value is None else round(float(value), 3)
 
 
 def _fallback_report(raw_text: str, error: Exception) -> dict[str, Any]:
@@ -238,6 +291,7 @@ def run_video(
     e2e_started = time.monotonic()
     mode = config.run.mode
     run_id = new_run_id(mode)
+    index_started = time.monotonic()
     if mode == "baseline_full":
         index, cache = _prepare_baseline_full(video, config, force=force_index)
         index_cache_hit = None
@@ -249,6 +303,7 @@ def run_video(
             force=force_index,
             run_id=run_id,
         )
+    index_wall_s = time.monotonic() - index_started
     run_dir = cache.run_dir(run_id)
     trace_path = run_dir / "trace.jsonl"
     video_path = Path(index.video.path)
@@ -293,6 +348,11 @@ def run_video(
         "trace": str(trace_path),
         "index_cache_hit": index_cache_hit,
         "latency_s": round(time.monotonic() - e2e_started, 3),
+        # Measured this run: 0 when the index cache was reused.
+        "index_wall_clock_s": round(index_wall_s, 3),
+        # What indexing costs from scratch. Persisted in index.json, so a cached run
+        # still reports it and the three modes stay comparable.
+        "index_cold_s": _index_cold_s(index, mode),
         **stats,
     }
     report = normalize_report(report_data, meta=meta)

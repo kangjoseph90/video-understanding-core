@@ -27,8 +27,9 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.view_frames.fps_options == (0.1, 0.2, 0.5, 1.0, 2.0)
     assert config.view_frames.grid_options == (1, 2, 3, 4)
     assert config.transcribe_segment.max_duration_s == 60
-    assert config.vision_llm.input_cost_per_million_usd == 0
-    assert config.vision_llm.output_cost_per_million_usd == 0
+    assert config.vision_llm.input_cost_per_million_usd == 0.15
+    assert config.vision_llm.cached_input_cost_per_million_usd == 0.03
+    assert config.vision_llm.output_cost_per_million_usd == 0.50
 
 
 def test_load_config_rejects_automatic_or_unknown_run_mode(tmp_path: Path) -> None:

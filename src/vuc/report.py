@@ -30,6 +30,10 @@ def _number(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _clamp(value: float, duration_s: float) -> float:
+    return min(max(value, 0.0), duration_s)
+
+
 def normalize_report(
     report: dict[str, Any],
     *,
@@ -40,11 +44,12 @@ def normalize_report(
     report.setdefault("sections", [])
     report.setdefault("key_moments", [])
     report["meta"] = meta
+    duration_s = _number(meta.get("duration_s"))
     for section in report["sections"]:
         if not isinstance(section, dict):
             continue
-        section["start_s"] = round(_number(section.get("start_s")))
-        section["end_s"] = round(_number(section.get("end_s")))
+        section["start_s"] = round(_clamp(_number(section.get("start_s")), duration_s))
+        section["end_s"] = round(_clamp(_number(section.get("end_s")), duration_s))
         citations = []
         for citation in section.get("citations", []):
             if isinstance(citation, str):
@@ -56,14 +61,15 @@ def normalize_report(
             citations.append(
                 {
                     "claim": str(citation.get("claim") or citation.get("text") or ""),
-                    "start_s": round(start_s),
-                    "end_s": round(end_s),
+                    "start_s": round(_clamp(start_s, duration_s)),
+                    "end_s": round(_clamp(max(end_s, start_s), duration_s)),
                 }
             )
         section["citations"] = citations
     for moment in report.get("key_moments", []):
         if isinstance(moment, dict):
-            moment["timestamp_s"] = round(_number(moment.get("timestamp_s", moment.get("start_s"))))
+            timestamp_s = _number(moment.get("timestamp_s", moment.get("start_s")))
+            moment["timestamp_s"] = round(_clamp(timestamp_s, duration_s))
     return report
 
 

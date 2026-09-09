@@ -7,14 +7,16 @@ from pathlib import Path
 from typing import Any
 
 from vuc.config import AppConfig
-from vuc.frames import format_timestamp
+from vuc.frames import format_span
 from vuc.llm import (
     ChatCompletionsClient,
     ChatResult,
+    cached_input_token_count,
     estimate_vlm_cost_usd,
     image_content,
     input_token_count,
     output_token_count,
+    reasoning_token_count,
 )
 from vuc.models import Segment, VideoIndex
 from vuc.tools import ToolExecution, ToolService
@@ -45,7 +47,13 @@ class AgentBudget:
     excluded_asr_s: float = 0.0
     tool_calls: int = 0
     input_tokens: int = 0
+    cached_input_tokens: int = 0
     output_tokens: int = 0
+    reasoning_tokens: int = 0
+    llm_calls: int = 0
+    llm_retries: int = 0
+    vlm_wall_s: float = 0.0
+    tool_wall_s: float = 0.0
 
     @classmethod
     def start(cls, config: AppConfig) -> AgentBudget:
@@ -71,13 +79,23 @@ def _index_line(segment: Segment) -> str:
     tags = [segment.language, segment.emotion or "", *segment.events]
     tag_text = " ".join(f"<{tag}>" for tag in tags if tag and tag != "unknown")
     return (
-        f"[{format_timestamp(segment.start)}–{format_timestamp(segment.end)}] "
-        f"{tag_text} {segment.text}"
+        f"[{format_span(segment.start, segment.end)}] {tag_text} {segment.text}"
     ).strip()
 
 
 def build_index_context(index: VideoIndex) -> str:
     return "\n".join(_index_line(segment) for segment in index.segments)
+
+
+def build_prompt_body(
+    query: str, duration_s: float, source_label: str, transcript: str
+) -> str:
+    """Shared preamble so every mode presents its transcript identically."""
+    return (
+        f"사용자 쿼리:\n{query}\n\n"
+        f"영상 길이: {int(duration_s)}\n"
+        f"{source_label} (구간 표기는 [시작-끝], 단위는 초):\n{transcript}"
+    )
 
 
 def system_prompt() -> str:
@@ -89,21 +107,15 @@ def system_prompt() -> str:
 - 더 정확한 음성 전사가 필요할 때 transcribe_segment를 사용한다.
 - 더 자세한 시각 정보가 필요할 때 해당 시간 구간을 view_frames로 조회한다.
 - 프레임에 보이는 텍스트(슬라이드, 자막, 화면 텍스트)는 ASR보다 우선 신뢰한다.
-- citation 시간은 start_s/end_s에 초 단위로 기록한다. 최종 Markdown은 이를 [mm:ss] 또는
-  [mm:ss–mm:ss]로 표시한다.
+- 모든 시각은 초 단위 숫자다. start_s/end_s도 초 단위 숫자로 적는다.
 
 초기 SenseVoice 인덱스와 타임스탬프 몽타주를 바탕으로 보고서를 작성하라.
 필요한 경우에만 도구를 사용하라.
 {REPORT_SCHEMA}"""
 
 
-def _initial_user_message(query: str, index_text: str, images: list[Path]) -> dict[str, Any]:
-    content: list[dict[str, Any]] = [
-        {
-            "type": "text",
-            "text": f"사용자 쿼리:\n{query}\n\nSenseVoice 전체 인덱스:\n{index_text}",
-        }
-    ]
+def _initial_user_message(body: str, images: list[Path]) -> dict[str, Any]:
+    content: list[dict[str, Any]] = [{"type": "text", "text": body}]
     content.extend(image_content(path) for path in images)
     return {"role": "user", "content": content}
 
@@ -116,6 +128,9 @@ def _record_llm(trace: TraceWriter, result: ChatResult, *, finalizing: bool) -> 
         result_summary={
             "tool_calls": len(result.message.get("tool_calls") or []),
             "has_content": bool(result.message.get("content")),
+            "attempts": result.attempts,
+            "cached_input_tokens": cached_input_token_count(result.usage),
+            "reasoning_tokens": reasoning_token_count(result.usage),
         },
         duration_ms=round(result.latency_s * 1000),
         token_usage=result.usage,
@@ -137,8 +152,12 @@ def run_agent_loop(
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt()},
         _initial_user_message(
-            query,
-            f"영상 길이: {index.video.duration_s:.3f}초\n{index_text}",
+            build_prompt_body(
+                query,
+                index.video.duration_s,
+                "전체 SenseVoice 인덱스",
+                index_text,
+            ),
             initial_images,
         ),
     ]
@@ -166,7 +185,12 @@ def run_agent_loop(
         )
         _record_llm(trace, result, finalizing=finalizing)
         budget.input_tokens += input_token_count(result.usage)
+        budget.cached_input_tokens += cached_input_token_count(result.usage)
         budget.output_tokens += output_token_count(result.usage)
+        budget.reasoning_tokens += reasoning_token_count(result.usage)
+        budget.llm_calls += 1
+        budget.llm_retries += result.attempts - 1
+        budget.vlm_wall_s += result.latency_s
         tool_calls = result.message.get("tool_calls") or []
         if finalizing or not tool_calls:
             final_text = str(result.message.get("content") or "")
@@ -199,7 +223,9 @@ def run_agent_loop(
                 except (json.JSONDecodeError, TypeError, ValueError) as exc:
                     execution = ToolExecution(data={"error": f"invalid tool arguments: {exc}"})
                 else:
+                    tool_started = time.monotonic()
                     execution = service.execute(name, arguments)
+                    budget.tool_wall_s += time.monotonic() - tool_started
                 budget.tool_calls += 1
                 budget.excluded_asr_s += execution.asr_elapsed_s
             messages.append(
@@ -221,14 +247,24 @@ def run_agent_loop(
             messages.append({"role": "user", "content": content})
 
     vlm_cost_usd = estimate_vlm_cost_usd(
-        config.vision_llm, budget.input_tokens, budget.output_tokens
+        config.vision_llm,
+        budget.input_tokens,
+        budget.output_tokens,
+        budget.cached_input_tokens,
     )
     return final_text, {
         "tool_calls": budget.tool_calls,
         "cumulative_input_tokens": budget.input_tokens,
+        "cached_input_tokens": budget.cached_input_tokens,
         "output_tokens": budget.output_tokens,
+        "reasoning_tokens": budget.reasoning_tokens,
+        "llm_calls": budget.llm_calls,
+        "llm_retries": budget.llm_retries,
         "vlm_cost_usd": None if vlm_cost_usd is None else round(vlm_cost_usd, 6),
         "agent_wall_clock_s": round(budget.effective_elapsed_s, 3),
+        "vlm_wall_clock_s": round(budget.vlm_wall_s, 3),
+        "frames_wall_clock_s": 0.0,
+        "tool_wall_clock_s": round(budget.tool_wall_s, 3),
         "asr_wall_clock_s": round(budget.excluded_asr_s, 3),
         "asr_processing_s": round(service.asr_processing_s, 3),
         "cloud_asr_audio_s": round(service.cloud_asr_audio_s, 3),
