@@ -23,12 +23,11 @@ from vuc.llm import (
     ChatResult,
     LLMError,
     cached_input_token_count,
-    call_cost_usd,
+    estimate_vlm_cost_usd,
     image_content,
     input_token_count,
     output_token_count,
     reasoning_token_count,
-    reported_cost_usd,
 )
 from vuc.media import extract_audio, probe_duration
 from vuc.models import VideoIndex, VideoMetadata
@@ -243,7 +242,9 @@ def run_single_pass(
     input_tokens = input_token_count(result.usage)
     cached_input_tokens = cached_input_token_count(result.usage)
     output_tokens = output_token_count(result.usage)
-    vlm_cost_usd = call_cost_usd(config.vision_llm, result.usage)
+    vlm_cost_usd = estimate_vlm_cost_usd(
+        config.vision_llm, input_tokens, output_tokens, cached_input_tokens
+    )
     return str(result.message.get("content") or ""), {
         "tool_calls": 0,
         "cumulative_input_tokens": input_tokens,
@@ -253,9 +254,6 @@ def run_single_pass(
         "llm_calls": 1,
         "llm_retries": result.attempts - 1,
         "vlm_cost_usd": None if vlm_cost_usd is None else round(vlm_cost_usd, 6),
-        "vlm_cost_source": (
-            "provider" if reported_cost_usd(result.usage) is not None else "config"
-        ),
         "agent_wall_clock_s": round(time.monotonic() - started - asr_wall_s, 3),
         "vlm_wall_clock_s": round(result.latency_s, 3),
         "frames_wall_clock_s": round(frames_wall_s, 3),
@@ -426,7 +424,9 @@ def run_video(
             repair_input = input_token_count(repair_result.usage)
             repair_cached = cached_input_token_count(repair_result.usage)
             repair_output = output_token_count(repair_result.usage)
-            repair_cost = call_cost_usd(config.vision_llm, repair_result.usage)
+            repair_cost = estimate_vlm_cost_usd(
+                config.vision_llm, repair_input, repair_output, repair_cached
+            )
             stats["cumulative_input_tokens"] += repair_input
             stats["cached_input_tokens"] += repair_cached
             stats["output_tokens"] += repair_output

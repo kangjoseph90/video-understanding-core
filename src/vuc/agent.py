@@ -13,12 +13,11 @@ from vuc.llm import (
     ChatCompletionsClient,
     ChatResult,
     cached_input_token_count,
-    call_cost_usd,
+    estimate_vlm_cost_usd,
     image_content,
     input_token_count,
     output_token_count,
     reasoning_token_count,
-    reported_cost_usd,
 )
 from vuc.models import Segment, VideoIndex
 from vuc.tools import ToolExecution, ToolService
@@ -54,9 +53,6 @@ class AgentBudget:
     reasoning_tokens: int = 0
     llm_calls: int = 0
     llm_retries: int = 0
-    cost_usd: float = 0.0
-    cost_known: bool = False
-    cost_from_provider: bool = False
     vlm_wall_s: float = 0.0
     tool_wall_s: float = 0.0
 
@@ -205,12 +201,6 @@ def run_agent_loop(
         budget.reasoning_tokens += reasoning_token_count(result.usage)
         budget.llm_calls += 1
         budget.llm_retries += result.attempts - 1
-        call_cost = call_cost_usd(config.vision_llm, result.usage)
-        if call_cost is not None:
-            budget.cost_usd += call_cost
-            budget.cost_known = True
-        if reported_cost_usd(result.usage) is not None:
-            budget.cost_from_provider = True
         budget.vlm_wall_s += result.latency_s
         tool_calls = result.message.get("tool_calls") or []
         if finalizing or not tool_calls:
@@ -267,7 +257,12 @@ def run_agent_loop(
             content.extend(image_content(path) for path in returned_images)
             messages.append({"role": "user", "content": content})
 
-    vlm_cost_usd = budget.cost_usd if budget.cost_known else None
+    vlm_cost_usd = estimate_vlm_cost_usd(
+        config.vision_llm,
+        budget.input_tokens,
+        budget.output_tokens,
+        budget.cached_input_tokens,
+    )
     return final_text, {
         "tool_calls": budget.tool_calls,
         "cumulative_input_tokens": budget.input_tokens,
@@ -277,7 +272,6 @@ def run_agent_loop(
         "llm_calls": budget.llm_calls,
         "llm_retries": budget.llm_retries,
         "vlm_cost_usd": None if vlm_cost_usd is None else round(vlm_cost_usd, 6),
-        "vlm_cost_source": "provider" if budget.cost_from_provider else "config",
         "agent_wall_clock_s": round(budget.effective_elapsed_s, 3),
         "vlm_wall_clock_s": round(budget.vlm_wall_s, 3),
         "frames_wall_clock_s": 0.0,
