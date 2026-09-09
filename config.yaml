@@ -1,8 +1,10 @@
 cache:
   directory: .vuc-cache
 
+run:
+  mode: agentic
+
 video:
-  short_threshold_s: 600
   allowed_extensions: [mp4, webm, mkv]
 
 indexer:

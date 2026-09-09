@@ -14,7 +14,6 @@ from vuc.config import load_config
 from vuc.llm import ChatResult
 from vuc.models import Segment, VideoIndex, VideoMetadata
 from vuc.report import apply_verification, normalize_report, report_time_coverage
-from vuc.run import route_video
 from vuc.tools import ToolError, ToolService, character_error_rate, interval_coverage
 
 
@@ -233,9 +232,7 @@ def test_system_prompt_contains_all_required_reliability_rules() -> None:
     assert "[mm:ss]" in prompt
 
 
-def test_router_and_asr_excluded_budget() -> None:
-    assert route_video(599.999, 600) == "baseline"
-    assert route_video(600, 600) == "agentic"
+def test_asr_is_excluded_from_agent_budget() -> None:
     budget = AgentBudget(12, 200_000, 20, started=time.monotonic() - 100)
     budget.excluded_asr_s = 90
 

@@ -34,10 +34,6 @@ from vuc.tools import ToolService
 from vuc.trace import TraceWriter
 
 
-def route_video(duration_s: float, short_threshold_s: float) -> str:
-    return "baseline" if duration_s < short_threshold_s else "agentic"
-
-
 def _baseline_images(
     video_path: Path,
     cache: VideoCache,
@@ -189,8 +185,8 @@ def run_video(
         provider=advanced_provider,
     )
     client = llm_client or ChatCompletionsClient(config.vision_llm)
-    route = route_video(index.video.duration_s, config.video.short_threshold_s)
-    if route == "baseline":
+    mode = config.run.mode
+    if mode == "baseline":
         raw_report, stats = run_baseline(
             query=actual_query,
             video_path=video_path,
@@ -216,7 +212,7 @@ def run_video(
     meta = {
         "path": str(video_path),
         "duration_s": index.video.duration_s,
-        "route": route,
+        "mode": mode,
         "index_cache_hit": index_cache_hit,
         "latency_s": round(time.monotonic() - e2e_started, 3),
         **stats,
@@ -227,13 +223,13 @@ def run_video(
         verify_overlap=config.agent.verify_overlap,
         meta=meta,
     )
-    report_key = hashlib.sha256(f"{route}:{actual_query}".encode()).hexdigest()[:16]
+    report_key = hashlib.sha256(f"{mode}:{actual_query}".encode()).hexdigest()[:16]
     report_dir = cache.reports_dir / report_key
     markdown_path, json_path = write_report(report, report_dir)
     TraceWriter(cache.trace_path).write(
         step="run",
         event="report_complete",
-        arguments={"route": route, "query": actual_query},
+        arguments={"mode": mode, "query": actual_query},
         result_summary={
             "markdown": str(markdown_path),
             "json": str(json_path),

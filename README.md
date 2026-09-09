@@ -18,8 +18,9 @@ local video ─┬─ ffmpeg 16 kHz mono ─► SenseVoice-Small + FSMN-VAD ─�
              │                                                     ├─► hash cache
              └─ ffmpeg sparse frames ─► timestamp burn-in ─► grid ┘
                                                                     │
-                              ┌─ short (<10m) ─► full advanced ASR ─┤
-                              └─ long  (≥10m) ─► calibrated agent ──┤
+                                   ┌─ run.mode=baseline ─► full advanced ASR ─┤
+                explicit config ─┤                                             ┤
+                                   └─ run.mode=agentic ─► calibrated agent ──┤
                                                                     ▼
                                                         Markdown + JSON report
 ```
@@ -63,6 +64,12 @@ uv run ruff check .
 ```
 
 다른 설정 파일은 `--config`, 기존 캐시 무시는 `--force`로 지정합니다.
+실행 모드는 영상 길이로 자동 선택하지 않고 config에 명시합니다.
+
+```yaml
+run:
+  mode: agentic  # agentic | baseline
+```
 
 ```bash
 uv run vuc index sample.webm --config config.yaml --force
@@ -75,9 +82,13 @@ uv run vuc run sample.webm --config config.yaml --force-index
 단일 [`config.yaml`](config.yaml)에 둡니다. 아직 구현되지 않은 M3 설정도 같은 스키마에
 미리 고정해 이후 별도 설정 파일이 생기지 않게 했습니다.
 
+`vuc run`은 영상 길이와 관계없이 `run.mode`에 지정한 모드만 실행합니다. 실험·PoC의
+재현성을 위해 `auto` 모드나 임계값 라우팅은 제공하지 않습니다.
+
 ## M2 behavior
 
-- `route_video`는 600초 미만 영상을 baseline, 이상을 agentic 경로로 보냅니다.
+- `run.mode: baseline|agentic`으로 실행 방식을 명시하며 영상 길이는 모드 선택에
+  영향을 주지 않습니다.
 - baseline은 고급 ASR을 제공자 상한 이하로 나눠 전체 전사하고 15초/512px 프레임과 함께
   한 번의 VLM 호출로 보고서를 만듭니다.
 - agentic 경로는 영상의 앞·중간·뒤 시간층에서 무작위 30초 구간 3개를 고급 ASR로 비교해
@@ -199,7 +210,7 @@ SenseVoice 오류입니다. `raw_text`는 증거로 보존하고, 정제 `text`�
 `glm-5.3-flash` 및 로컬 faster-whisper `large-v3-turbo` CPU int8로 실행했습니다.
 아래 표는 evidence-span과 CER 보정 전의 원래 M2 실행 기록입니다.
 
-| route | e2e | agent wall (ASR 제외) | ASR wall | tool calls | cumulative input tokens | citations |
+| mode | e2e | agent wall (ASR 제외) | ASR wall | tool calls | cumulative input tokens | citations |
 |---|---:|---:|---:|---:|---:|---:|
 | baseline, 55.7s | 134.7s | 52.2s | 67.7s | 0 | 2,538 | 5/6 verified |
 | agentic, 30m | 186.6s | 83.4s | 103.1s | 8 | 80,348 | 9/9 verified |
@@ -240,7 +251,7 @@ agentic의 0–60초 faster-whisper `large-v3-turbo` 전사에 실제로 `강요
 메타데이터상 CC 재사용 허용은 2개였고, 나머지 3개는 라이선스 표시가 없어 평가용 로컬
 캐시 외에 재배포하지 않습니다.
 
-| category | video | route | segments / mean | reliability | e2e (agent + ASR) | tools | report | coverage |
+| category | video | mode | segments / mean | reliability | e2e (agent + ASR) | tools | report | coverage |
 |---|---:|---|---:|---:|---:|---:|---:|---:|
 | slide lecture | 11:56 | agentic | 52 / 13.65s | 0.955 | 425.5s (214.1 + 211.4) | 12 | invalid, 0 citations | 0% |
 | cooking tutorial | 10:03 | agentic | 45 / 13.27s | 0.784 | 224.2s (148.1 + 76.0) | 12 | valid, 10/10 verified | 99.99% |
@@ -277,6 +288,6 @@ M4에서 다국어 평가셋으로 채웁니다.
 
 ## Roadmap
 
-- M2: 완료 — 세 도구, 캘리브레이션, 직접 구현한 tool-calling loop, router, 보고서 출력
+- M2: 완료 — 세 도구, 캘리브레이션, 직접 구현한 tool-calling loop, 명시적 실행 모드, 보고서 출력
 - M3: 세 비교군, manifest benchmark, citation/report judge
 - M4: 4개 이상 언어와 코드 스위칭을 포함한 실제 평가 및 기본값 제안

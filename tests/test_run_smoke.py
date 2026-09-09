@@ -83,7 +83,8 @@ class StubLLM:
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required")
-def test_run_short_video_baseline_smoke(tmp_path: Path) -> None:
+@pytest.mark.parametrize("mode", ["baseline", "agentic"])
+def test_run_explicit_mode_ignores_short_duration(tmp_path: Path, mode: str) -> None:
     video = tmp_path / "sample.mp4"
     subprocess.run(
         [
@@ -112,12 +113,12 @@ def test_run_short_video_baseline_smoke(tmp_path: Path) -> None:
     )
     source = Path(__file__).parents[1] / "config.yaml"
     config_path = tmp_path / "config.yaml"
-    config_path.write_text(
-        source.read_text(encoding="utf-8").replace(
-            "directory: .vuc-cache", f"directory: {tmp_path / 'cache'}"
-        ),
-        encoding="utf-8",
+    config_text = source.read_text(encoding="utf-8")
+    config_text = config_text.replace(
+        "directory: .vuc-cache", f"directory: {tmp_path / 'cache'}"
     )
+    config_text = config_text.replace("mode: agentic", f"mode: {mode}")
+    config_path.write_text(config_text, encoding="utf-8")
     config = load_config(config_path)
 
     report, markdown_path, json_path = run_video(
@@ -128,7 +129,7 @@ def test_run_short_video_baseline_smoke(tmp_path: Path) -> None:
         llm_client=StubLLM(),
     )
 
-    assert report["meta"]["route"] == "baseline"
+    assert report["meta"]["mode"] == mode
     assert report["meta"]["cumulative_input_tokens"] == 100
     assert report["meta"]["output_tokens"] == 50
     assert report["meta"]["vlm_cost_usd"] is None

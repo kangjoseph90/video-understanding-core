@@ -63,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 json.dumps(
                     {
-                        "route": report["meta"]["route"],
+                        "mode": report["meta"]["mode"],
                         "markdown": str(markdown_path),
                         "json": str(json_path),
                         "meta": report["meta"],

@@ -15,8 +15,12 @@ class CacheConfig:
 
 @dataclass(frozen=True)
 class VideoConfig:
-    short_threshold_s: float
     allowed_extensions: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RunConfig:
+    mode: str
 
 
 @dataclass(frozen=True)
@@ -121,6 +125,7 @@ class ViewFramesConfig:
 class AppConfig:
     path: Path
     cache: CacheConfig
+    run: RunConfig
     video: VideoConfig
     indexer: IndexerConfig
     frames: FramesConfig
@@ -152,6 +157,7 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         raise ValueError("config root must be a mapping")
 
     cache = _section(data, "cache")
+    run = _section(data, "run")
     video = _section(data, "video")
     indexer = _section(data, "indexer")
     frames = _section(data, "frames")
@@ -170,8 +176,8 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
     result = AppConfig(
         path=config_path,
         cache=CacheConfig(directory=cache_dir),
+        run=RunConfig(mode=str(run["mode"])),
         video=VideoConfig(
-            short_threshold_s=float(video["short_threshold_s"]),
             allowed_extensions=tuple(
                 str(item).lower().lstrip(".") for item in video["allowed_extensions"]
             ),
@@ -249,6 +255,8 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         raw=data,
     )
     _ = result.frames.montage_shape
+    if result.run.mode not in {"agentic", "baseline"}:
+        raise ValueError("run.mode must be agentic or baseline")
     if result.advanced_asr.provider not in {"local", "cloud"}:
         raise ValueError("asr.advanced.provider must be local or cloud")
     if not 0 <= result.agent.verify_overlap <= 1:

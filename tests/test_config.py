@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import pytest
+
 from vuc.config import load_config
 
 
@@ -9,6 +11,7 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     config = load_config(project_root / "config.yaml")
 
     assert config.cache.directory == project_root / ".vuc-cache"
+    assert config.run.mode == "agentic"
     assert config.indexer.device == "cpu"
     assert config.indexer.hub == "hf"
     assert config.frames.montage_shape == (3, 3)
@@ -17,6 +20,20 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.agent.verify_overlap == 0.8
     assert config.vision_llm.input_cost_per_million_usd == 0
     assert config.vision_llm.output_cost_per_million_usd == 0
+
+
+def test_load_config_rejects_automatic_or_unknown_run_mode(tmp_path: Path) -> None:
+    project_root = Path(__file__).parents[1]
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        (project_root / "config.yaml")
+        .read_text(encoding="utf-8")
+        .replace("mode: agentic", "mode: auto"),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="run.mode must be agentic or baseline"):
+        load_config(config_path)
 
 
 def test_load_config_reads_dotenv_without_overriding_process_env(
