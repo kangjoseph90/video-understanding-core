@@ -38,6 +38,7 @@ class FakeProvider:
         *,
         audio_duration_s: float,
         language_hint: str | None,
+        prompt: str | None = None,
     ) -> ASRResult:
         self.calls += 1
         return ASRResult(

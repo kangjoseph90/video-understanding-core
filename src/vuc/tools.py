@@ -18,6 +18,7 @@ from vuc.frames import (
     format_span,
     montage_cell_size,
 )
+from vuc.hints import VideoHints
 from vuc.media import extract_audio_segment
 from vuc.models import VideoIndex
 from vuc.trace import TraceWriter
@@ -86,11 +87,13 @@ class ToolService:
         config: AppConfig,
         trace_path: Path,
         provider: AdvancedASRProvider | None = None,
+        hints: VideoHints | None = None,
     ) -> None:
         self.video_path = video_path
         self.index = index
         self.cache = cache
         self.config = config
+        self.hints = hints
         self._provider = provider
         self.trace = TraceWriter(trace_path)
         self.asr_processing_s = 0.0
@@ -251,6 +254,12 @@ class ToolService:
         return ToolExecution(data=data, image_paths=images)
 
     def _language_hint(self, start_s: float, end_s: float) -> str | None:
+        """Prefer what the index observed locally, else the declared language.
+
+        baseline_full skips indexing entirely, so without the metadata fallback
+        it hands Whisper no language at all and auto-detection can pick the
+        wrong one for the whole video.
+        """
         languages = {
             segment.language
             for segment in self.index.segments
@@ -258,7 +267,9 @@ class ToolService:
             and segment.start < end_s
             and segment.language not in {"unknown", "nospeech"}
         }
-        return next(iter(languages)) if len(languages) == 1 else None
+        if len(languages) == 1:
+            return next(iter(languages))
+        return self.hints.language if self.hints else None
 
     @staticmethod
     def _transcript_lines(sentences: list[dict[str, Any]]) -> str:
@@ -276,11 +287,14 @@ class ToolService:
                 f"transcribe_segment interval is {duration:.3f}s; "
                 f"the limit is {maximum_s:.0f}s"
             )
+        prompt = self.hints.asr_prompt(start, end) if self.hints else ""
         arguments = {
             "start_s": start,
             "end_s": end,
             "provider": self.provider_name,
             "model": self.provider_model_name,
+            # The prompt steers the transcript, so it belongs in the cache key.
+            "prompt": prompt,
         }
         result_path = self.cache.advanced_asr_dir / f"{self._key('asr', arguments)}.json"
         if result_path.exists():
@@ -295,6 +309,7 @@ class ToolService:
             audio_path,
             audio_duration_s=duration,
             language_hint=language_hint,
+            prompt=prompt or None,
         )
         asr_elapsed = time.monotonic() - wall_started
         data = result.to_dict()
@@ -315,6 +330,7 @@ class ToolService:
                 # the model reads is formatted identically.
                 "transcript": self._transcript_lines(sentences),
                 "language_hint": language_hint,
+                "asr_prompt": prompt,
                 "cache_hit": False,
             }
         )

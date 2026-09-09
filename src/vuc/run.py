@@ -16,6 +16,7 @@ from vuc.agent import (
 from vuc.cache import VideoCache, new_run_id, sha256_file
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_sampled_frames, montage_cell_size
+from vuc.hints import VideoHints, load_video_hints
 from vuc.indexer import Transcriber
 from vuc.llm import (
     ChatCompletionsClient,
@@ -194,6 +195,7 @@ def run_single_pass(
     config: AppConfig,
     service: ToolService,
     client: ChatCompletionsClient,
+    hints: VideoHints | None = None,
 ) -> tuple[str, dict[str, Any]]:
     started = time.monotonic()
     frames_wall_s = 0.0
@@ -211,7 +213,9 @@ def run_single_pass(
     else:
         raise ValueError(f"unsupported single-pass mode: {mode}")
 
-    body = build_prompt_body(query, index.video.duration_s, source_label, transcript)
+    body = build_prompt_body(
+        query, index.video.duration_s, source_label, transcript, hints
+    )
     content: list[dict[str, Any]] = [
         {
             "type": "text",
@@ -287,10 +291,14 @@ def run_video(
     index_transcriber: Transcriber | None = None,
     advanced_provider: AdvancedASRProvider | None = None,
     llm_client: ChatCompletionsClient | None = None,
+    hints: VideoHints | None = None,
 ) -> tuple[dict[str, Any], Path, Path]:
     e2e_started = time.monotonic()
     mode = config.run.mode
     run_id = new_run_id(mode)
+    # A <video>.meta.json sidecar is applied automatically when present.
+    if hints is None:
+        hints = load_video_hints(Path(video).expanduser().resolve())
     index_started = time.monotonic()
     if mode == "baseline_full":
         index, cache = _prepare_baseline_full(video, config, force=force_index)
@@ -302,6 +310,7 @@ def run_video(
             transcriber=index_transcriber,
             force=force_index,
             run_id=run_id,
+            hints=hints,
         )
     index_wall_s = time.monotonic() - index_started
     run_dir = cache.run_dir(run_id)
@@ -315,6 +324,7 @@ def run_video(
         config=config,
         trace_path=trace_path,
         provider=advanced_provider,
+        hints=hints,
     )
     client = llm_client or ChatCompletionsClient(config.vision_llm)
     if mode in {"baseline_full", "baseline_index_only"}:
@@ -327,6 +337,7 @@ def run_video(
             config=config,
             service=service,
             client=client,
+            hints=hints,
         )
     else:
         raw_report, stats = run_agent_loop(
@@ -335,6 +346,7 @@ def run_video(
             config=config,
             service=service,
             client=client,
+            hints=hints,
         )
     try:
         report_data = parse_report_json(raw_report)
@@ -347,6 +359,7 @@ def run_video(
         "run_id": run_id,
         "trace": str(trace_path),
         "index_cache_hit": index_cache_hit,
+        "hints": None if hints is None else hints.to_dict(),
         "latency_s": round(time.monotonic() - e2e_started, 3),
         # Measured this run: 0 when the index cache was reused.
         "index_wall_clock_s": round(index_wall_s, 3),

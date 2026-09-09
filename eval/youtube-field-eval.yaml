@@ -1,8 +1,9 @@
 name: youtube-field-eval-2026-09-08
 purpose: Real-world evaluation manifest for the three explicit vuc run modes
-storage: .vuc-cache/youtube-eval/videos
+storage: eval/videos
 videos:
   - id: 4m6wzOlQ6fg
+    file: manifest-slide-lecture-cc.mp4
     category: slide_lecture
     language: en
     duration_s: 716
@@ -11,6 +12,7 @@ videos:
     url: "https://www.youtube.com/watch?v=4m6wzOlQ6fg"
     license: "Creative Commons Attribution license (reuse allowed)"
   - id: knxgR5esJu4
+    file: manifest-cooking-yachaejeon.mp4
     category: cooking_tutorial
     language: en
     duration_s: 603
@@ -19,6 +21,7 @@ videos:
     url: "https://www.youtube.com/watch?v=knxgR5esJu4"
     license: null
   - id: Keej4G0xlks
+    file: manifest-talking-head-voices.mp4
     category: talking_head
     language: en
     duration_s: 551
@@ -27,6 +30,7 @@ videos:
     url: "https://www.youtube.com/watch?v=Keej4G0xlks"
     license: "Creative Commons Attribution license (reuse allowed)"
   - id: NGD_xpXAv70
+    file: manifest-korean-vlog-kiwi.mp4
     category: korean_vlog
     language: ko
     duration_s: 1027
@@ -35,6 +39,7 @@ videos:
     url: "https://www.youtube.com/watch?v=NGD_xpXAv70"
     license: null
   - id: 5ZeHtRKHl7Y
+    file: manifest-japanese-vlog-tokyo.mp4
     category: non_korean_japanese_vlog
     language: ja
     duration_s: 800

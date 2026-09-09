@@ -9,6 +9,7 @@ from pathlib import Path
 from vuc.cache import VideoCache, new_run_id, sha256_file
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_initial_frames, format_span
+from vuc.hints import VideoHints
 from vuc.indexer import SenseVoiceTranscriber, Transcriber
 from vuc.media import extract_audio, probe_duration
 from vuc.models import FrameArtifact, Segment, VideoIndex, VideoMetadata
@@ -81,6 +82,7 @@ def index_video(
     transcriber: Transcriber | None = None,
     force: bool = False,
     run_id: str | None = None,
+    hints: VideoHints | None = None,
 ) -> tuple[VideoIndex, VideoCache, bool, Path]:
     video_path = _validate_video(Path(path), config)
     video_hash = sha256_file(video_path)
@@ -89,9 +91,12 @@ def index_video(
     actual_run_id = run_id or new_run_id("index")
     trace_path = cache.run_dir(actual_run_id) / "trace.jsonl"
     trace = TraceWriter(trace_path)
+    hint_language = hints.language if hints else None
     if cache.index_json_path.exists() and not force:
         cached = _load_cached(cache.index_json_path)
-        if cached.frame_config == _frame_config(config):
+        if cached.frame_config == _frame_config(config) and cached.indexer.get(
+            "language_hint"
+        ) == hint_language:
             trace.write(
                 step="index",
                 event="cache_hit",
@@ -114,7 +119,9 @@ def index_video(
     def index_audio() -> list[Segment]:
         started = time.monotonic()
         extract_audio(video_path, cache.audio_path)
-        active_transcriber = transcriber or SenseVoiceTranscriber(config.indexer, duration_s)
+        active_transcriber = transcriber or SenseVoiceTranscriber(
+            config.indexer, duration_s, language=hint_language
+        )
         segments = active_transcriber.transcribe(cache.audio_path)
         trace.write(
             step="index",
@@ -177,6 +184,7 @@ def index_video(
             "hub": config.indexer.hub,
             "model": config.indexer.model,
             "vad_model": config.indexer.vad_model,
+            "language_hint": hint_language,
             # Persisted so later runs that hit the cache can still report the cold cost.
             "cold_sensevoice_s": timings.get("sensevoice_s", 0.0),
             "cold_frames_s": timings.get("frames_s", 0.0),

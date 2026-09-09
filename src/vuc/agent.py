@@ -8,6 +8,7 @@ from typing import Any
 
 from vuc.config import AppConfig
 from vuc.frames import format_span
+from vuc.hints import VideoHints
 from vuc.llm import (
     ChatCompletionsClient,
     ChatResult,
@@ -88,14 +89,22 @@ def build_index_context(index: VideoIndex) -> str:
 
 
 def build_prompt_body(
-    query: str, duration_s: float, source_label: str, transcript: str
+    query: str,
+    duration_s: float,
+    source_label: str,
+    transcript: str,
+    hints: VideoHints | None = None,
 ) -> str:
     """Shared preamble so every mode presents its transcript identically."""
-    return (
-        f"사용자 쿼리:\n{query}\n\n"
+    blocks = [f"사용자 쿼리:\n{query}"]
+    metadata = hints.prompt_block() if hints else ""
+    if metadata:
+        blocks.append(metadata)
+    blocks.append(
         f"영상 길이: {int(duration_s)}\n"
         f"{source_label} (구간 표기는 [시작-끝], 단위는 초):\n{transcript}"
     )
+    return "\n\n".join(blocks)
 
 
 def system_prompt() -> str:
@@ -144,6 +153,7 @@ def run_agent_loop(
     config: AppConfig,
     service: ToolService,
     client: ChatCompletionsClient,
+    hints: VideoHints | None = None,
 ) -> tuple[str, dict[str, Any]]:
     index_text = build_index_context(index)
     initial_images = [Path(path) for path in index.montages]
@@ -157,6 +167,7 @@ def run_agent_loop(
                 index.video.duration_s,
                 "전체 SenseVoice 인덱스",
                 index_text,
+                hints,
             ),
             initial_images,
         ),

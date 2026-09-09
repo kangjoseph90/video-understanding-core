@@ -93,10 +93,21 @@ def normalize_funasr_result(result: Any, duration_s: float) -> list[Segment]:
     return segments
 
 
+# SenseVoiceSmall conditions on learned language/text-norm embeddings only, so
+# the language code is the one hint it can take -- no free text, no hotwords.
+SENSEVOICE_LANGUAGES = {"zh", "en", "yue", "ja", "ko", "nospeech", "auto"}
+
+
 class SenseVoiceTranscriber:
-    def __init__(self, config: IndexerConfig, duration_s: float) -> None:
+    def __init__(
+        self,
+        config: IndexerConfig,
+        duration_s: float,
+        language: str | None = None,
+    ) -> None:
         self.config = config
         self.duration_s = duration_s
+        self.language = language if language in SENSEVOICE_LANGUAGES else "auto"
         try:
             from funasr import AutoModel
         except ImportError as exc:
@@ -118,7 +129,7 @@ class SenseVoiceTranscriber:
         result = self._model.generate(
             input=str(audio_path),
             cache={},
-            language="auto",
+            language=self.language,
             use_itn=True,
             batch_size_s=self.config.batch_size_s,
             merge_vad=self.config.merge_vad,

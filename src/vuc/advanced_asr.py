@@ -57,6 +57,7 @@ class AdvancedASRProvider(Protocol):
         *,
         audio_duration_s: float,
         language_hint: str | None,
+        prompt: str | None = None,
     ) -> ASRResult: ...
 
 
@@ -86,6 +87,7 @@ class FasterWhisperProvider:
         *,
         audio_duration_s: float,
         language_hint: str | None,
+        prompt: str | None = None,
     ) -> ASRResult:
         started = time.monotonic()
         segments, info = self._model.transcribe(
@@ -93,6 +95,7 @@ class FasterWhisperProvider:
             language=language_hint,
             vad_filter=False,
             beam_size=5,
+            initial_prompt=prompt or None,
         )
         sentences = tuple(
             TranscriptSentence(
@@ -129,8 +132,9 @@ class CloudASRStubProvider:
         *,
         audio_duration_s: float,
         language_hint: str | None,
+        prompt: str | None = None,
     ) -> ASRResult:
-        del audio_path, audio_duration_s, language_hint
+        del audio_path, audio_duration_s, language_hint, prompt
         raise AdvancedASRError(
             "cloud advanced ASR is configured but its M2 implementation is a stub; "
             "switch asr.advanced.provider to local"
