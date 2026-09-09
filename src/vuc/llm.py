@@ -49,6 +49,31 @@ def reasoning_token_count(usage: dict[str, Any]) -> int:
     return 0
 
 
+def reported_cost_usd(usage: dict[str, Any]) -> float | None:
+    """Cost the provider billed for this call, when it reports one.
+
+    OpenRouter returns `usage.cost`, which beats any local estimate: it already
+    reflects promotional rates and cache discounts.
+    """
+    value = usage.get("cost")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+def call_cost_usd(config: VisionLLMConfig, usage: dict[str, Any]) -> float | None:
+    """Provider-reported cost if available, else the configured rate estimate."""
+    reported = reported_cost_usd(usage)
+    if reported is not None:
+        return reported
+    return estimate_vlm_cost_usd(
+        config,
+        input_token_count(usage),
+        output_token_count(usage),
+        cached_input_token_count(usage),
+    )
+
+
 def estimate_vlm_cost_usd(
     config: VisionLLMConfig,
     input_tokens: int,

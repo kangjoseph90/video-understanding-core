@@ -21,12 +21,14 @@ from vuc.indexer import Transcriber
 from vuc.llm import (
     ChatCompletionsClient,
     ChatResult,
+    LLMError,
     cached_input_token_count,
-    estimate_vlm_cost_usd,
+    call_cost_usd,
     image_content,
     input_token_count,
     output_token_count,
     reasoning_token_count,
+    reported_cost_usd,
 )
 from vuc.media import extract_audio, probe_duration
 from vuc.models import VideoIndex, VideoMetadata
@@ -241,9 +243,7 @@ def run_single_pass(
     input_tokens = input_token_count(result.usage)
     cached_input_tokens = cached_input_token_count(result.usage)
     output_tokens = output_token_count(result.usage)
-    vlm_cost_usd = estimate_vlm_cost_usd(
-        config.vision_llm, input_tokens, output_tokens, cached_input_tokens
-    )
+    vlm_cost_usd = call_cost_usd(config.vision_llm, result.usage)
     return str(result.message.get("content") or ""), {
         "tool_calls": 0,
         "cumulative_input_tokens": input_tokens,
@@ -253,6 +253,9 @@ def run_single_pass(
         "llm_calls": 1,
         "llm_retries": result.attempts - 1,
         "vlm_cost_usd": None if vlm_cost_usd is None else round(vlm_cost_usd, 6),
+        "vlm_cost_source": (
+            "provider" if reported_cost_usd(result.usage) is not None else "config"
+        ),
         "agent_wall_clock_s": round(time.monotonic() - started - asr_wall_s, 3),
         "vlm_wall_clock_s": round(result.latency_s, 3),
         "frames_wall_clock_s": round(frames_wall_s, 3),
@@ -271,6 +274,68 @@ def _index_cold_s(index: VideoIndex, mode: str) -> float | None:
         return None
     value = index.indexer.get("cold_total_s")
     return None if value is None else round(float(value), 3)
+
+
+def _repair_report_json(
+    client: ChatCompletionsClient,
+    trace: TraceWriter,
+    raw_text: str,
+    error: Exception,
+) -> tuple[dict[str, Any] | None, ChatResult | None]:
+    """Ask the model to fix its own malformed report JSON.
+
+    Large multimodal prompts occasionally make the model drop out of the schema
+    mid-array, throwing away a run that already paid for ASR, frames and a
+    100k-token request. The repair call replays only the broken text, so it
+    costs a fraction of the original and never runs when parsing succeeded.
+    """
+    try:
+        result = client.complete(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "너는 잘못된 JSON을 고친다. 내용을 새로 만들지 말고 구조만 "
+                        "바로잡아 유효한 JSON 객체 하나만 출력한다."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"다음 JSON이 파싱에 실패했다: {error}\n\n"
+                        f"{raw_text}\n\n"
+                        f"원래 스키마는 다음과 같다.\n{REPORT_SCHEMA}"
+                    ),
+                },
+            ],
+            tools=None,
+        )
+    except LLMError as exc:
+        trace.write(
+            step="run",
+            event="report_repair",
+            arguments={"original_error": str(error)},
+            result_summary={"repaired": False, "error": str(exc)},
+            duration_ms=0,
+        )
+        return None, None
+
+    try:
+        repaired = parse_report_json(str(result.message.get("content") or ""))
+    except (json.JSONDecodeError, ValueError) as exc:
+        repaired = None
+        detail = str(exc)
+    else:
+        detail = None
+    trace.write(
+        step="run",
+        event="report_repair",
+        arguments={"original_error": str(error)},
+        result_summary={"repaired": repaired is not None, "error": detail},
+        duration_ms=round(result.latency_s * 1000),
+        token_usage=result.usage,
+    )
+    return repaired, result
 
 
 def _fallback_report(raw_text: str, error: Exception) -> dict[str, Any]:
@@ -348,10 +413,32 @@ def run_video(
             client=client,
             hints=hints,
         )
+    repair_stats: dict[str, Any] = {"report_repaired": False}
     try:
         report_data = parse_report_json(raw_report)
     except (json.JSONDecodeError, ValueError) as exc:
-        report_data = _fallback_report(raw_report, exc)
+        repaired, repair_result = _repair_report_json(
+            client, service.trace, raw_report, exc
+        )
+        report_data = repaired if repaired is not None else _fallback_report(raw_report, exc)
+        repair_stats["report_repaired"] = repaired is not None
+        if repair_result is not None:
+            repair_input = input_token_count(repair_result.usage)
+            repair_cached = cached_input_token_count(repair_result.usage)
+            repair_output = output_token_count(repair_result.usage)
+            repair_cost = call_cost_usd(config.vision_llm, repair_result.usage)
+            stats["cumulative_input_tokens"] += repair_input
+            stats["cached_input_tokens"] += repair_cached
+            stats["output_tokens"] += repair_output
+            stats["reasoning_tokens"] += reasoning_token_count(repair_result.usage)
+            stats["llm_calls"] += 1
+            stats["vlm_wall_clock_s"] = round(
+                stats["vlm_wall_clock_s"] + repair_result.latency_s, 3
+            )
+            if repair_cost is not None:
+                stats["vlm_cost_usd"] = round(
+                    (stats["vlm_cost_usd"] or 0.0) + repair_cost, 6
+                )
     meta = {
         "path": str(video_path),
         "duration_s": index.video.duration_s,
@@ -361,6 +448,7 @@ def run_video(
         "index_cache_hit": index_cache_hit,
         "hints": None if hints is None else hints.to_dict(),
         "latency_s": round(time.monotonic() - e2e_started, 3),
+        **repair_stats,
         # Measured this run: 0 when the index cache was reused.
         "index_wall_clock_s": round(index_wall_s, 3),
         # What indexing costs from scratch. Persisted in index.json, so a cached run
