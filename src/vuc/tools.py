@@ -79,6 +79,7 @@ class ToolService:
         index: VideoIndex,
         cache: VideoCache,
         config: AppConfig,
+        trace_path: Path,
         provider: AdvancedASRProvider | None = None,
     ) -> None:
         self.video_path = video_path
@@ -86,7 +87,7 @@ class ToolService:
         self.cache = cache
         self.config = config
         self._provider = provider
-        self.trace = TraceWriter(cache.trace_path)
+        self.trace = TraceWriter(trace_path)
         self.asr_processing_s = 0.0
         self.cloud_asr_cost_usd = 0.0
         self.cloud_asr_audio_s = 0.0

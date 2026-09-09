@@ -118,7 +118,6 @@ uv run ruff check .
 | baseline_full ASR chunk | local 180s / cloud 600s |
 | agentic ASR tool interval | 60s/call |
 | agent tool calls | 12 |
-| agent cumulative input budget | 200,000 tokens |
 | agent wall-clock budget | 600s excluding ASR |
 
 `meta.cumulative_input_tokens`는 agentic의 모든 VLM turn에 보고된 입력 토큰을 합한 값입니다.
@@ -130,9 +129,9 @@ ASR 시간은 에이전트 wall-clock 예산과 분리합니다. 로컬 ASR은 `
 ASR은 처리한 오디오 초와 `cloud_asr_cost_usd`로 각각 기록합니다.
 
 캐시는 입력 파일 SHA-256을 키로 `.vuc-cache/<sha256>/` 아래에 저장됩니다. SenseVoice를 쓰는
-모드는 `audio.wav`, `index.json`, `index.txt`, 프레임, 몽타주를 공유합니다. 보고서는
-`reports/<query-hash>/report.md`와 `report.json`, 실행 이력은 같은 영상 캐시 루트의
-`trace.jsonl`에 누적됩니다.
+모드는 `audio.wav`, `index.json`, `index.txt`, 프레임, 몽타주를 공유합니다. 각 `vuc run`의
+보고서와 trace는 `runs/<run-id>/report.md`, `report.json`, `trace.jsonl`로 분리되어 이전 실행을
+덮어쓰거나 서로 섞지 않습니다.
 
 ## Measurements
 

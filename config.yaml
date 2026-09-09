@@ -51,7 +51,6 @@ asr:
 agent:
   query: "영상의 핵심 내용을 근거와 함께 요약 보고서로 작성해 주세요."
   max_tool_calls: 12
-  max_input_tokens: 200000
   wall_clock_s: 600
 
 tools:

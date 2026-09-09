@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 
-from vuc.cache import VideoCache, sha256_file
+from vuc.cache import VideoCache, new_run_id, sha256_file
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_initial_frames, format_timestamp
 from vuc.indexer import SenseVoiceTranscriber, Transcriber
@@ -81,12 +81,15 @@ def index_video(
     *,
     transcriber: Transcriber | None = None,
     force: bool = False,
-) -> tuple[VideoIndex, VideoCache, bool]:
+    run_id: str | None = None,
+) -> tuple[VideoIndex, VideoCache, bool, Path]:
     video_path = _validate_video(Path(path), config)
     video_hash = sha256_file(video_path)
     cache = VideoCache(config.cache.directory, video_hash)
     cache.ensure()
-    trace = TraceWriter(cache.trace_path)
+    actual_run_id = run_id or new_run_id("index")
+    trace_path = cache.run_dir(actual_run_id) / "trace.jsonl"
+    trace = TraceWriter(trace_path)
     if cache.index_json_path.exists() and not force:
         cached = _load_cached(cache.index_json_path)
         if cached.frame_config == _frame_config(config):
@@ -97,7 +100,7 @@ def index_video(
                 result_summary={"video_hash": video_hash},
                 duration_ms=0,
             )
-            return cached, cache, True
+            return cached, cache, True, trace_path
 
     duration_s = probe_duration(video_path)
     metadata = VideoMetadata(
@@ -183,4 +186,4 @@ def index_video(
         },
         duration_ms=0,
     )
-    return index, cache, False
+    return index, cache, False, trace_path

@@ -67,12 +67,14 @@ def test_index_video_creates_cache_frames_montage_and_trace(tmp_path: Path) -> N
     config_path.write_text(config_data, encoding="utf-8")
     config = load_config(config_path)
 
-    index, cache, cache_hit = index_video(video, config, transcriber=StubTranscriber())
+    index, cache, cache_hit, trace_path = index_video(
+        video, config, transcriber=StubTranscriber()
+    )
 
     assert not cache_hit
     assert cache.index_json_path.exists()
     assert cache.index_text_path.exists()
-    assert cache.trace_path.exists()
+    assert trace_path.exists()
     assert len(index.frames) == 4
     assert len(index.montages) == 1
     assert index.frame_config == {
@@ -85,13 +87,16 @@ def test_index_video_creates_cache_frames_montage_and_trace(tmp_path: Path) -> N
     with Image.open(index.montages[0]) as montage:
         assert montage.size == (896, 504)
     assert "<Speech>" in cache.index_text_path.read_text(encoding="utf-8")
-    trace = [json.loads(line) for line in cache.trace_path.read_text().splitlines()]
+    trace = [json.loads(line) for line in trace_path.read_text().splitlines()]
     assert {item["event"] for item in trace} == {
         "sensevoice_index",
         "initial_frames",
         "index_complete",
     }
 
-    cached, _, second_cache_hit = index_video(video, config, transcriber=StubTranscriber())
+    cached, _, second_cache_hit, second_trace_path = index_video(
+        video, config, transcriber=StubTranscriber()
+    )
     assert second_cache_hit
     assert cached.video.sha256 == index.video.sha256
+    assert second_trace_path != trace_path

@@ -83,7 +83,6 @@ class AdvancedASRConfig:
 class AgentConfig:
     query: str
     max_tool_calls: int
-    max_input_tokens: int
     wall_clock_s: float
 
 
@@ -199,7 +198,6 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         agent=AgentConfig(
             query=str(agent["query"]),
             max_tool_calls=int(agent["max_tool_calls"]),
-            max_input_tokens=int(agent["max_input_tokens"]),
             wall_clock_s=float(agent["wall_clock_s"]),
         ),
         view_frames=ViewFramesConfig(

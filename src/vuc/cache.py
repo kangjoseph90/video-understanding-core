@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,11 @@ def sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
+def new_run_id(label: str) -> str:
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
+    return f"{timestamp}-{label}-{uuid.uuid4().hex[:8]}"
+
+
 class VideoCache:
     def __init__(self, root: Path, video_hash: str) -> None:
         self.root = root / video_hash
@@ -24,15 +31,19 @@ class VideoCache:
         self.montages_dir = self.root / "montages"
         self.tool_frames_dir = self.root / "tool_frames"
         self.advanced_asr_dir = self.root / "advanced_asr"
-        self.reports_dir = self.root / "reports"
-        self.trace_path = self.root / "trace.jsonl"
+        self.runs_dir = self.root / "runs"
 
     def ensure(self) -> None:
         self.frames_dir.mkdir(parents=True, exist_ok=True)
         self.montages_dir.mkdir(parents=True, exist_ok=True)
         self.tool_frames_dir.mkdir(parents=True, exist_ok=True)
         self.advanced_asr_dir.mkdir(parents=True, exist_ok=True)
-        self.reports_dir.mkdir(parents=True, exist_ok=True)
+        self.runs_dir.mkdir(parents=True, exist_ok=True)
+
+    def run_dir(self, run_id: str) -> Path:
+        directory = self.runs_dir / run_id
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
 
     def write_json(self, path: Path, value: Any) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)

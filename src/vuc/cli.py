@@ -33,7 +33,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "index":
             config = load_config(args.config)
-            index, cache, cache_hit = index_video(args.video, config, force=args.force)
+            index, cache, cache_hit, trace_path = index_video(
+                args.video, config, force=args.force
+            )
             print(
                 json.dumps(
                     {
@@ -45,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
                         "montages": len(index.montages),
                         "index_json": str(cache.index_json_path),
                         "index_text": str(cache.index_text_path),
-                        "trace": str(cache.trace_path),
+                        "trace": str(trace_path),
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -66,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
                         "mode": report["meta"]["mode"],
                         "markdown": str(markdown_path),
                         "json": str(json_path),
+                        "trace": report["meta"]["trace"],
                         "meta": report["meta"],
                     },
                     ensure_ascii=False,

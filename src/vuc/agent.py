@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from vuc.cache import VideoCache
 from vuc.config import AppConfig
 from vuc.frames import format_timestamp
 from vuc.llm import (
@@ -41,7 +40,6 @@ Keep the complete JSON concise enough to fit within the output limit.
 @dataclass
 class AgentBudget:
     max_tool_calls: int
-    max_input_tokens: int
     wall_clock_s: float
     started: float
     excluded_asr_s: float = 0.0
@@ -53,7 +51,6 @@ class AgentBudget:
     def start(cls, config: AppConfig) -> AgentBudget:
         return cls(
             max_tool_calls=config.agent.max_tool_calls,
-            max_input_tokens=config.agent.max_input_tokens,
             wall_clock_s=config.agent.wall_clock_s,
             started=time.monotonic(),
         )
@@ -65,8 +62,6 @@ class AgentBudget:
     def reason(self) -> str | None:
         if self.tool_calls >= self.max_tool_calls:
             return "max_tool_calls"
-        if self.input_tokens >= self.max_input_tokens:
-            return "max_input_tokens"
         if self.effective_elapsed_s >= self.wall_clock_s:
             return "wall_clock"
         return None
@@ -131,7 +126,6 @@ def run_agent_loop(
     *,
     query: str,
     index: VideoIndex,
-    cache: VideoCache,
     config: AppConfig,
     service: ToolService,
     client: ChatCompletionsClient,
@@ -139,7 +133,7 @@ def run_agent_loop(
     index_text = build_index_context(index)
     initial_images = [Path(path) for path in index.montages]
     budget = AgentBudget.start(config)
-    trace = TraceWriter(cache.trace_path)
+    trace = service.trace
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt()},
         _initial_user_message(

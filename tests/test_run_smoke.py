@@ -140,3 +140,16 @@ def test_run_explicit_mode_ignores_short_duration(
     }
     assert markdown_path.exists()
     assert json_path.exists()
+    assert markdown_path.parent == json_path.parent
+    assert Path(report["meta"]["trace"]).parent == markdown_path.parent
+    assert report["meta"]["run_id"] == markdown_path.parent.name
+
+    if mode == "agentic":
+        _, second_markdown_path, _ = run_video(
+            video,
+            config,
+            index_transcriber=StubIndexer(),
+            advanced_provider=provider,
+            llm_client=StubLLM(),
+        )
+        assert second_markdown_path.parent != markdown_path.parent

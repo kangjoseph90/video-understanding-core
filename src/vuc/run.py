@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import time
 from datetime import UTC, datetime
@@ -9,7 +8,7 @@ from typing import Any
 
 from vuc.advanced_asr import AdvancedASRProvider
 from vuc.agent import REPORT_SCHEMA, build_index_context, run_agent_loop
-from vuc.cache import VideoCache, sha256_file
+from vuc.cache import VideoCache, new_run_id, sha256_file
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_sampled_frames, montage_cell_size
 from vuc.indexer import Transcriber
@@ -199,7 +198,7 @@ def run_single_pass(
         ],
         tools=None,
     )
-    _record_single_pass_llm(TraceWriter(cache.trace_path), result, mode)
+    _record_single_pass_llm(service.trace, result, mode)
     input_tokens = input_token_count(result.usage)
     output_tokens = output_token_count(result.usage)
     vlm_cost_usd = estimate_vlm_cost_usd(config.vision_llm, input_tokens, output_tokens)
@@ -238,16 +237,20 @@ def run_video(
 ) -> tuple[dict[str, Any], Path, Path]:
     e2e_started = time.monotonic()
     mode = config.run.mode
+    run_id = new_run_id(mode)
     if mode == "baseline_full":
         index, cache = _prepare_baseline_full(video, config, force=force_index)
         index_cache_hit = None
     else:
-        index, cache, index_cache_hit = index_video(
+        index, cache, index_cache_hit, _ = index_video(
             video,
             config,
             transcriber=index_transcriber,
             force=force_index,
+            run_id=run_id,
         )
+    run_dir = cache.run_dir(run_id)
+    trace_path = run_dir / "trace.jsonl"
     video_path = Path(index.video.path)
     actual_query = query or config.agent.query
     service = ToolService(
@@ -255,6 +258,7 @@ def run_video(
         index=index,
         cache=cache,
         config=config,
+        trace_path=trace_path,
         provider=advanced_provider,
     )
     client = llm_client or ChatCompletionsClient(config.vision_llm)
@@ -273,7 +277,6 @@ def run_video(
         raw_report, stats = run_agent_loop(
             query=actual_query,
             index=index,
-            cache=cache,
             config=config,
             service=service,
             client=client,
@@ -286,15 +289,15 @@ def run_video(
         "path": str(video_path),
         "duration_s": index.video.duration_s,
         "mode": mode,
+        "run_id": run_id,
+        "trace": str(trace_path),
         "index_cache_hit": index_cache_hit,
         "latency_s": round(time.monotonic() - e2e_started, 3),
         **stats,
     }
     report = normalize_report(report_data, meta=meta)
-    report_key = hashlib.sha256(f"{mode}:{actual_query}".encode()).hexdigest()[:16]
-    report_dir = cache.reports_dir / report_key
-    markdown_path, json_path = write_report(report, report_dir)
-    TraceWriter(cache.trace_path).write(
+    markdown_path, json_path = write_report(report, run_dir)
+    service.trace.write(
         step="run",
         event="report_complete",
         arguments={"mode": mode, "query": actual_query},

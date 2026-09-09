@@ -80,6 +80,7 @@ def make_service(tmp_path: Path, monkeypatch) -> tuple[ToolService, FakeProvider
             index=index,
             cache=cache,
             config=config,
+            trace_path=tmp_path / "trace.jsonl",
             provider=provider,
         ),
         provider,
@@ -142,7 +143,7 @@ def test_transcribe_trace_records_cost_dimensions(tmp_path: Path, monkeypatch) -
 
     service.execute("transcribe_segment", {"start_s": 10, "end_s": 20})
 
-    record = json.loads(service.cache.trace_path.read_text(encoding="utf-8").splitlines()[-1])
+    record = json.loads(service.trace.path.read_text(encoding="utf-8").splitlines()[-1])
     summary = record["result_summary"]
     assert summary["provider"] == "local"
     assert summary["audio_duration_s"] == 10
@@ -161,7 +162,7 @@ def test_system_prompt_makes_tools_optional() -> None:
 
 
 def test_asr_is_excluded_from_agent_budget() -> None:
-    budget = AgentBudget(12, 200_000, 20, started=time.monotonic() - 100)
+    budget = AgentBudget(12, 20, started=time.monotonic() - 100)
     budget.excluded_asr_s = 90
 
     assert budget.reason() is None
@@ -199,7 +200,6 @@ def test_agent_can_finish_without_tools_or_forced_retry(tmp_path: Path, monkeypa
     raw_report, stats = run_agent_loop(
         query="summary",
         index=service.index,
-        cache=service.cache,
         config=service.config,
         service=service,
         client=client,
