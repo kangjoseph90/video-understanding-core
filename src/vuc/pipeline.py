@@ -68,10 +68,10 @@ def _load_cached(path: Path) -> VideoIndex:
 def _frame_config(config: AppConfig) -> dict[str, float | int]:
     return {
         "interval_s": config.frames.index_interval_s,
-        "montage_width": config.frames.montage_width,
-        "montage_height": config.frames.montage_height,
-        "montage_n": config.frames.montage_n,
-        "jpeg_quality": config.frames.jpeg_quality,
+        "montage_width": config.montage.width,
+        "montage_height": config.montage.height,
+        "montage_n": config.frames.index_montage_n,
+        "jpeg_quality": config.montage.jpeg_quality,
     }
 
 
@@ -130,24 +130,25 @@ def index_video(
             video_path,
             cache.frames_dir,
             duration_s=duration_s,
-            config=config.frames,
+            frames_config=config.frames,
+            montage_config=config.montage,
         )
         montages = create_montages(
             frames,
             cache.montages_dir,
-            n=config.frames.montage_n,
-            width=config.frames.montage_width,
-            height=config.frames.montage_height,
-            jpeg_quality=config.frames.jpeg_quality,
+            n=config.frames.index_montage_n,
+            width=config.montage.width,
+            height=config.montage.height,
+            jpeg_quality=config.montage.jpeg_quality,
         )
         trace.write(
             step="index",
             event="initial_frames",
             arguments={
                 "interval_s": config.frames.index_interval_s,
-                "montage_width": config.frames.montage_width,
-                "montage_height": config.frames.montage_height,
-                "montage_n": config.frames.montage_n,
+                "montage_width": config.montage.width,
+                "montage_height": config.montage.height,
+                "montage_n": config.frames.index_montage_n,
             },
             result_summary={"frames": len(frames), "montages": len(montages)},
             duration_ms=round((time.monotonic() - started) * 1000),

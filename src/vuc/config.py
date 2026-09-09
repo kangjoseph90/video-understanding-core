@@ -39,10 +39,15 @@ class IndexerConfig:
 @dataclass(frozen=True)
 class FramesConfig:
     index_interval_s: float
+    index_montage_n: int
     baseline_full_interval_s: float
-    montage_width: int
-    montage_height: int
-    montage_n: int
+    baseline_full_montage_n: int
+
+
+@dataclass(frozen=True)
+class MontageConfig:
+    width: int
+    height: int
     jpeg_quality: int
 
 
@@ -94,6 +99,11 @@ class ViewFramesConfig:
 
 
 @dataclass(frozen=True)
+class TranscribeSegmentConfig:
+    max_duration_s: float
+
+
+@dataclass(frozen=True)
 class AppConfig:
     path: Path
     cache: CacheConfig
@@ -101,10 +111,12 @@ class AppConfig:
     video: VideoConfig
     indexer: IndexerConfig
     frames: FramesConfig
+    montage: MontageConfig
     vision_llm: VisionLLMConfig
     advanced_asr: AdvancedASRConfig
     agent: AgentConfig
     view_frames: ViewFramesConfig
+    transcribe_segment: TranscribeSegmentConfig
 
 
 def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
@@ -132,6 +144,7 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
     video = _section(data, "video")
     indexer = _section(data, "indexer")
     frames = _section(data, "frames")
+    montage = _section(data, "montage")
     vision_llm = _section(data, "vision_llm")
     asr = _section(data, "asr")
     advanced_asr = _section(asr, "advanced")
@@ -140,6 +153,7 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
     agent = _section(data, "agent")
     tools = _section(data, "tools")
     view_frames = _section(tools, "view_frames")
+    transcribe_segment = _section(tools, "transcribe_segment")
     cache_dir = Path(str(cache["directory"])).expanduser()
     if not cache_dir.is_absolute():
         cache_dir = (config_path.parent / cache_dir).resolve()
@@ -166,11 +180,14 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         ),
         frames=FramesConfig(
             index_interval_s=float(frames["index_interval_s"]),
+            index_montage_n=int(frames["index_montage_n"]),
             baseline_full_interval_s=float(frames["baseline_full_interval_s"]),
-            montage_width=int(frames["montage_width"]),
-            montage_height=int(frames["montage_height"]),
-            montage_n=int(frames["montage_n"]),
-            jpeg_quality=int(frames["jpeg_quality"]),
+            baseline_full_montage_n=int(frames["baseline_full_montage_n"]),
+        ),
+        montage=MontageConfig(
+            width=int(montage["width"]),
+            height=int(montage["height"]),
+            jpeg_quality=int(montage["jpeg_quality"]),
         ),
         vision_llm=VisionLLMConfig(
             base_url_env=str(vision_llm["base_url_env"]),
@@ -205,15 +222,18 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             grid_options=tuple(int(value) for value in view_frames["grid_options"]),
             max_montages_per_call=int(view_frames["max_montages_per_call"]),
         ),
+        transcribe_segment=TranscribeSegmentConfig(
+            max_duration_s=float(transcribe_segment["max_duration_s"]),
+        ),
     )
     if result.run.mode not in {"agentic", "baseline_full", "baseline_index_only"}:
         raise ValueError(
             "run.mode must be agentic, baseline_full, or baseline_index_only"
         )
-    if result.frames.montage_n < 1:
-        raise ValueError("frames.montage_n must be positive")
-    if result.frames.montage_width < 1 or result.frames.montage_height < 1:
-        raise ValueError("frames montage dimensions must be positive")
+    if result.frames.index_montage_n < 1 or result.frames.baseline_full_montage_n < 1:
+        raise ValueError("frame montage grid sizes must be positive")
+    if result.montage.width < 1 or result.montage.height < 1:
+        raise ValueError("montage dimensions must be positive")
     if not result.view_frames.fps_options or any(
         value <= 0 for value in result.view_frames.fps_options
     ):
@@ -222,14 +242,20 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         value < 1 for value in result.view_frames.grid_options
     ):
         raise ValueError("tools.view_frames.grid_options must contain positive integers")
-    grids = (*result.view_frames.grid_options, result.frames.montage_n)
+    grids = (
+        *result.view_frames.grid_options,
+        result.frames.index_montage_n,
+        result.frames.baseline_full_montage_n,
+    )
     if any(
-        result.frames.montage_width % n or result.frames.montage_height % n
+        result.montage.width % n or result.montage.height % n
         for n in grids
     ):
         raise ValueError("montage dimensions must be divisible by every configured grid size")
     if result.view_frames.max_montages_per_call < 1:
         raise ValueError("tools.view_frames.max_montages_per_call must be positive")
+    if result.transcribe_segment.max_duration_s <= 0:
+        raise ValueError("tools.transcribe_segment.max_duration_s must be positive")
     if result.advanced_asr.provider not in {"local", "cloud"}:
         raise ValueError("asr.advanced.provider must be local or cloud")
     if (

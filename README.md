@@ -45,12 +45,14 @@ transcribe_segment(start_s, end_s)
 view_frames(start_s, end_s, fps, n)
 ```
 
-- `transcribe_segment`의 한 번 호출 구간은 provider 설정과 관계없이 최대 60초입니다.
+- `transcribe_segment`의 한 번 호출 구간은 `tools.transcribe_segment.max_duration_s`와 provider
+  상한 중 작은 값까지이며 기본값은 60초입니다.
   기본 provider는 로컬 faster-whisper `large-v3-turbo`, CPU `int8`입니다. cloud provider는
   인터페이스만 있는 stub입니다.
 - `view_frames`에서 에이전트가 시간 구간, fps, 정사각 몽타주의 한 변 `n`을 선택합니다.
-  `fps`는 `0.1|0.2|0.5|1|2`, `n`은 `1|2|3|4|6` 중에서 선택합니다.
-- 모든 몽타주의 기준 캔버스는 1344×756입니다. 셀 크기는 요청한 `n`으로 결정되며, 마지막
+  `fps`는 `0.1|0.2|0.5|1|2`, `n`은 `1|2|3|4` 중에서 선택합니다.
+- 모든 몽타주의 캔버스 크기와 JPEG 품질은 전역 `montage` 설정을 사용하며 기본 캔버스는
+  1344×756입니다. 셀 크기는 요청한 `n`으로 결정되며, 마지막
   묶음은 셀 크기를 유지하면서 프레임을 담을 수 있는 최소 정사각 grid로 축소합니다. 예를
   들어 3×3 요청의 마지막 4프레임은 빈칸 없는 896×504의 2×2 몽타주가 됩니다.
 - 한 호출의 제한은 원본 프레임 16장이 아니라 반환되는 몽타주 이미지 16장입니다.
@@ -112,7 +114,7 @@ uv run ruff check .
 | baseline_full frame sampling | 1s |
 | montage reference canvas | 1344×756 |
 | initial montage grid | 3×3 |
-| tool grid choices | 1×1, 2×2, 3×3, 4×4, 6×6 |
+| tool grid choices | 1×1, 2×2, 3×3, 4×4 |
 | tool fps choices | 0.1, 0.2, 0.5, 1, 2 |
 | tool montage limit | 16 images/call |
 | baseline_full ASR chunk | local 180s / cloud 600s |

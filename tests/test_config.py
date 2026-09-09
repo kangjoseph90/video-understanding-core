@@ -14,8 +14,10 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.run.mode == "agentic"
     assert config.indexer.device == "cpu"
     assert config.indexer.hub == "hf"
-    assert config.frames.montage_n == 3
-    assert (config.frames.montage_width, config.frames.montage_height) == (1344, 756)
+    assert config.frames.index_montage_n == 3
+    assert config.frames.baseline_full_montage_n == 3
+    assert (config.montage.width, config.montage.height) == (1344, 756)
+    assert config.montage.jpeg_quality == 88
     assert config.frames.index_interval_s == 15
     assert config.frames.baseline_full_interval_s == 1
     assert config.advanced_asr.provider == "local"
@@ -23,7 +25,8 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.advanced_asr.cloud.max_segment_s == 600
     assert config.view_frames.max_montages_per_call == 16
     assert config.view_frames.fps_options == (0.1, 0.2, 0.5, 1.0, 2.0)
-    assert config.view_frames.grid_options == (1, 2, 3, 4, 6)
+    assert config.view_frames.grid_options == (1, 2, 3, 4)
+    assert config.transcribe_segment.max_duration_s == 60
     assert config.vision_llm.input_cost_per_million_usd == 0
     assert config.vision_llm.output_cost_per_million_usd == 0
 

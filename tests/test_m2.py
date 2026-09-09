@@ -105,6 +105,16 @@ def test_tool_limit_stays_sixty_when_provider_allows_more(
     assert service.tool_max_segment_s == 60
 
 
+def test_transcribe_limit_comes_from_tool_config(tmp_path: Path, monkeypatch) -> None:
+    service, _ = make_service(tmp_path, monkeypatch)
+    object.__setattr__(service.config.transcribe_segment, "max_duration_s", 45)
+
+    assert service.tool_max_segment_s == 45
+    assert "at most 45 seconds" in service.schemas[1]["function"]["description"]
+    with pytest.raises(ToolError, match="limit is 45s"):
+        service.transcribe_segment(0, 46)
+
+
 def test_baseline_chunk_uses_provider_limit(tmp_path: Path, monkeypatch) -> None:
     service, provider = make_service(tmp_path, monkeypatch)
     provider.max_segment_s = 180
@@ -231,7 +241,7 @@ def test_tool_schemas_and_montage_limit(tmp_path: Path, monkeypatch) -> None:
     }
     assert schemas[0]["function"]["parameters"]["properties"]["n"] == {
         "type": "integer",
-        "enum": [1, 2, 3, 4, 6],
+        "enum": [1, 2, 3, 4],
     }
     execution = service.execute(
         "view_frames", {"start_s": 0, "end_s": 100, "fps": 2, "n": 3}

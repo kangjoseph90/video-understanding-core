@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from vuc.config import FramesConfig
+from vuc.config import FramesConfig, MontageConfig
 from vuc.media import MediaError, require_binary
 from vuc.models import FrameArtifact
 
@@ -60,19 +60,22 @@ def extract_initial_frames(
     output_dir: Path,
     *,
     duration_s: float,
-    config: FramesConfig,
+    frames_config: FramesConfig,
+    montage_config: MontageConfig,
 ) -> list[FrameArtifact]:
     cell_width, _ = montage_cell_size(
-        config.montage_width, config.montage_height, config.montage_n
+        montage_config.width,
+        montage_config.height,
+        frames_config.index_montage_n,
     )
     return extract_sampled_frames(
         video_path,
         output_dir,
         start_s=0,
         end_s=duration_s,
-        fps=1 / config.index_interval_s,
+        fps=1 / frames_config.index_interval_s,
         resolution=cell_width,
-        jpeg_quality=config.jpeg_quality,
+        jpeg_quality=montage_config.jpeg_quality,
     )
 
 

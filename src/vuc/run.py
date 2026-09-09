@@ -74,10 +74,10 @@ def _baseline_full_images(
     metadata_path = root / "result.json"
     settings = {
         "interval_s": config.frames.baseline_full_interval_s,
-        "montage_width": config.frames.montage_width,
-        "montage_height": config.frames.montage_height,
-        "n": config.frames.montage_n,
-        "jpeg_quality": config.frames.jpeg_quality,
+        "montage_width": config.montage.width,
+        "montage_height": config.montage.height,
+        "n": config.frames.baseline_full_montage_n,
+        "jpeg_quality": config.montage.jpeg_quality,
     }
     if metadata_path.exists():
         data = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -85,9 +85,9 @@ def _baseline_full_images(
         if data.get("settings") == settings and all(path.exists() for path in paths):
             return paths
     cell_width, _ = montage_cell_size(
-        config.frames.montage_width,
-        config.frames.montage_height,
-        config.frames.montage_n,
+        config.montage.width,
+        config.montage.height,
+        config.frames.baseline_full_montage_n,
     )
     frames = extract_sampled_frames(
         video_path,
@@ -96,15 +96,15 @@ def _baseline_full_images(
         end_s=index.video.duration_s,
         fps=1 / config.frames.baseline_full_interval_s,
         resolution=cell_width,
-        jpeg_quality=config.frames.jpeg_quality,
+        jpeg_quality=config.montage.jpeg_quality,
     )
     montages = create_montages(
         frames,
         root / "montages",
-        n=config.frames.montage_n,
-        width=config.frames.montage_width,
-        height=config.frames.montage_height,
-        jpeg_quality=config.frames.jpeg_quality,
+        n=config.frames.baseline_full_montage_n,
+        width=config.montage.width,
+        height=config.montage.height,
+        jpeg_quality=config.montage.jpeg_quality,
     )
     cache.write_json(
         metadata_path,

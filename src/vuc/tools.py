@@ -23,15 +23,15 @@ VIEW_FRAMES_SCHEMA = {
         "name": "view_frames",
         "description": (
             "Extract timestamped frames from an interval and return n×n montage images. "
-            "At most 16 montage images may be returned per call."
+            "The number of returned montages is limited by tool configuration."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "start_s": {"type": "number"},
                 "end_s": {"type": "number"},
-                "fps": {"type": "number", "enum": [0.1, 0.2, 0.5, 1.0, 2.0]},
-                "n": {"type": "integer", "enum": [1, 2, 3, 4, 6]},
+                "fps": {"type": "number"},
+                "n": {"type": "integer"},
             },
             "required": ["start_s", "end_s", "fps", "n"],
             "additionalProperties": False,
@@ -45,7 +45,7 @@ TRANSCRIBE_SEGMENT_SCHEMA = {
         "name": "transcribe_segment",
         "description": (
             "Transcribe a selected interval with the advanced ASR provider. "
-            "The interval may be at most 60 seconds."
+            "The interval is limited by the configured tool maximum."
         ),
         "parameters": {
             "type": "object",
@@ -129,7 +129,10 @@ class ToolService:
 
     @property
     def tool_max_segment_s(self) -> float:
-        return min(60.0, self.provider_max_segment_s)
+        return min(
+            self.config.transcribe_segment.max_duration_s,
+            self.provider_max_segment_s,
+        )
 
     @property
     def schemas(self) -> list[dict[str, Any]]:
@@ -197,8 +200,8 @@ class ToolService:
             "end_s": end,
             "fps": fps_value,
             "n": n_value,
-            "montage_width": self.config.frames.montage_width,
-            "montage_height": self.config.frames.montage_height,
+            "montage_width": self.config.montage.width,
+            "montage_height": self.config.montage.height,
         }
         call_dir = self.cache.tool_frames_dir / self._key("view_frames", arguments)
         metadata_path = call_dir / "result.json"
@@ -208,8 +211,8 @@ class ToolService:
             return ToolExecution(data={**metadata, "cache_hit": True}, image_paths=images)
 
         cell_width, _ = montage_cell_size(
-            self.config.frames.montage_width,
-            self.config.frames.montage_height,
+            self.config.montage.width,
+            self.config.montage.height,
             n_value,
         )
         frames = extract_sampled_frames(
@@ -219,15 +222,15 @@ class ToolService:
             end_s=end,
             fps=fps_value,
             resolution=cell_width,
-            jpeg_quality=self.config.frames.jpeg_quality,
+            jpeg_quality=self.config.montage.jpeg_quality,
         )
         montages = create_montages(
             frames,
             call_dir / "montages",
             n=n_value,
-            width=self.config.frames.montage_width,
-            height=self.config.frames.montage_height,
-            jpeg_quality=self.config.frames.jpeg_quality,
+            width=self.config.montage.width,
+            height=self.config.montage.height,
+            jpeg_quality=self.config.montage.jpeg_quality,
         )
         images = tuple(montages)
         data: dict[str, Any] = {
