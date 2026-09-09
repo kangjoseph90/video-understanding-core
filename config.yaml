@@ -35,7 +35,7 @@ vision_llm:
   api_key_env: VLM_API_KEY
   timeout_s: 180
   max_retries: 2
-  max_output_tokens: 8192
+  max_output_tokens: 32768
   input_cost_per_million_usd: 0.0
   output_cost_per_million_usd: 0.0
 
