@@ -33,14 +33,14 @@ vision_llm:
   base_url_env: VLM_BASE_URL
   model_env: VLM_MODEL
   api_key_env: VLM_API_KEY
+  # Token rates live beside VLM_MODEL in .env so the model and its prices are
+  # swapped together. Unset rates mean "unknown" and vlm_cost_usd stays null.
+  input_cost_env: VLM_INPUT_COST_PER_MTOK
+  cached_input_cost_env: VLM_CACHED_INPUT_COST_PER_MTOK
+  output_cost_env: VLM_OUTPUT_COST_PER_MTOK
   timeout_s: 180
   max_retries: 2
   max_output_tokens: 32768
-  # Keep in sync with VLM_MODEL; vlm_cost_usd is computed from these.
-  # deepseek/deepseek-v4.1-flash via OpenRouter (USD per 1M tokens).
-  input_cost_per_million_usd: 0.30
-  cached_input_cost_per_million_usd: 0.006
-  output_cost_per_million_usd: 1.20
 
 asr:
   advanced:

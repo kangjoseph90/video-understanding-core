@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -56,6 +57,9 @@ class VisionLLMConfig:
     base_url_env: str
     model_env: str
     api_key_env: str
+    input_cost_env: str
+    cached_input_cost_env: str
+    output_cost_env: str
     timeout_s: float
     max_retries: int
     max_output_tokens: int
@@ -118,6 +122,17 @@ class AppConfig:
     agent: AgentConfig
     view_frames: ViewFramesConfig
     transcribe_segment: TranscribeSegmentConfig
+
+
+def _rate(env_name: str) -> float:
+    """USD per million tokens from the environment. Unset means unknown (0)."""
+    raw = os.environ.get(str(env_name), "").strip()
+    if not raw:
+        return 0.0
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{env_name} must be a number, got {raw!r}") from exc
 
 
 def _section(data: dict[str, Any], name: str) -> dict[str, Any]:
@@ -194,14 +209,15 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             base_url_env=str(vision_llm["base_url_env"]),
             model_env=str(vision_llm["model_env"]),
             api_key_env=str(vision_llm["api_key_env"]),
+            input_cost_env=str(vision_llm["input_cost_env"]),
+            cached_input_cost_env=str(vision_llm["cached_input_cost_env"]),
+            output_cost_env=str(vision_llm["output_cost_env"]),
             timeout_s=float(vision_llm["timeout_s"]),
             max_retries=int(vision_llm["max_retries"]),
             max_output_tokens=int(vision_llm["max_output_tokens"]),
-            input_cost_per_million_usd=float(vision_llm["input_cost_per_million_usd"]),
-            cached_input_cost_per_million_usd=float(
-                vision_llm["cached_input_cost_per_million_usd"]
-            ),
-            output_cost_per_million_usd=float(vision_llm["output_cost_per_million_usd"]),
+            input_cost_per_million_usd=_rate(vision_llm["input_cost_env"]),
+            cached_input_cost_per_million_usd=_rate(vision_llm["cached_input_cost_env"]),
+            output_cost_per_million_usd=_rate(vision_llm["output_cost_env"]),
         ),
         advanced_asr=AdvancedASRConfig(
             provider=str(advanced_asr["provider"]),
