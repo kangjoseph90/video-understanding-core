@@ -96,7 +96,8 @@ class ChatCompletionsClient:
         ]
         if missing:
             raise LLMError(f"missing environment variables: {', '.join(missing)}")
-        self.url = f"{base_url.rstrip('/')}/chat/completions"
+        self.base_url = base_url.rstrip("/")
+        self.url = f"{self.base_url}/chat/completions"
         self.model = model
         self.max_retries = config.max_retries
         self.max_output_tokens = config.max_output_tokens

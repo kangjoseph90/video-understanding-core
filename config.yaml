@@ -36,9 +36,11 @@ vision_llm:
   timeout_s: 180
   max_retries: 2
   max_output_tokens: 32768
-  input_cost_per_million_usd: 0.15
-  cached_input_cost_per_million_usd: 0.03
-  output_cost_per_million_usd: 0.50
+  # Keep in sync with VLM_MODEL; vlm_cost_usd is computed from these.
+  # deepseek/deepseek-v4.1-flash via OpenRouter (USD per 1M tokens).
+  input_cost_per_million_usd: 0.30
+  cached_input_cost_per_million_usd: 0.006
+  output_cost_per_million_usd: 1.20
 
 asr:
   advanced:

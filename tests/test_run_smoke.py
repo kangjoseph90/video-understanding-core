@@ -50,6 +50,7 @@ class StubAdvancedASR:
 
 class StubLLM:
     model = "stub-vlm"
+    base_url = "https://stub.invalid/v1"
 
     def complete(self, messages, **kwargs) -> ChatResult:
         del messages, kwargs
@@ -132,9 +133,13 @@ def test_run_explicit_mode_ignores_short_duration(
     assert report["meta"]["mode"] == mode
     assert report["meta"]["cumulative_input_tokens"] == 100
     assert report["meta"]["output_tokens"] == 50
-    # 100 input @ $0.15/1M + 50 output @ $0.50/1M
-    assert report["meta"]["vlm_cost_usd"] == 4e-05
+    expected_cost = (
+        100 * config.vision_llm.input_cost_per_million_usd
+        + 50 * config.vision_llm.output_cost_per_million_usd
+    ) / 1_000_000
+    assert report["meta"]["vlm_cost_usd"] == round(expected_cost, 6)
     assert report["meta"]["cached_input_tokens"] == 0
+    assert report["meta"]["vlm_model"] == "stub-vlm"
     if mode == "baseline_full":
         # baseline_full never builds an index, so it has no cold indexing cost.
         assert report["meta"]["index_cold_s"] is None

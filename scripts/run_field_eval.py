@@ -25,6 +25,8 @@ from vuc.run import run_video
 MODES = ("baseline_index_only", "agentic", "baseline_full")
 
 SUMMARY_KEYS = (
+    "vlm_model",
+    "vlm_base_url",
     "duration_s",
     "latency_s",
     "index_wall_clock_s",

@@ -446,6 +446,10 @@ def run_video(
         "run_id": run_id,
         "trace": str(trace_path),
         "index_cache_hit": index_cache_hit,
+        # Which VLM produced this report. Without it, runs from two models are
+        # indistinguishable once they land in the same results file.
+        "vlm_model": getattr(client, "model", None),
+        "vlm_base_url": getattr(client, "base_url", None),
         "hints": None if hints is None else hints.to_dict(),
         "latency_s": round(time.monotonic() - e2e_started, 3),
         **repair_stats,
