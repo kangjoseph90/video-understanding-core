@@ -43,7 +43,7 @@ visual_scan:
 ocr:
   enabled: true
   engine: rapidocr
-  scan_fps: 1
+  scan_fps: 4
   scan_width: 448
   recognition_width: 1280
   workers: 4

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import subprocess
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -73,6 +74,8 @@ def extract_plain_frames(
     fps: float,
     width: int,
     duration_s: float,
+    indices: list[int] | None = None,
+    first_center_s: float | None = None,
 ) -> list[tuple[float, Path]]:
     """A flat sampling of the video, unmarked, for something else to read.
 
@@ -80,6 +83,37 @@ def extract_plain_frames(
     first put our own second counter into the text index as on-screen text.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    selected = None if indices is None else sorted(set(indices))
+    if selected == []:
+        return []
+    # Align a dense clock with the centres of the coarse clock. FFmpeg's
+    # nearest rounding otherwise samples 1fps around n+.5 but 4fps around
+    # n+.125, changing even the supposedly unchanged base OCR frames.
+    shift = 0.0 if first_center_s is None else first_center_s - 0.5 / fps
+    filters = (
+        f"fps={fps}"
+        if first_center_s is None
+        else f"setpts=PTS-({shift})/TB,fps={fps}:start_time=0"
+    )
+    if selected is not None:
+        if selected[0] < 0:
+            raise ValueError("frame indices must be nonnegative")
+        runs: list[list[int]] = []
+        for index in selected:
+            if runs and index == runs[-1][1] + 1:
+                runs[-1][1] = index
+            else:
+                runs.append([index, index])
+        # A flat a+b+c+... expression hits libavutil's recursion limit on a
+        # long video. A balanced tree has logarithmic depth.
+        terms = [f"between(n,{a},{b})" for a, b in runs]
+        while len(terms) > 1:
+            terms = [
+                f"({terms[i]}+{terms[i + 1]})" if i + 1 < len(terms) else terms[i]
+                for i in range(0, len(terms), 2)
+            ]
+        filters += f",select='{terms[0]}'"
+    filters += f",scale=w='min(iw,{width})':h=-2"
     command = [
         require_binary("ffmpeg"),
         "-hide_banner",
@@ -88,17 +122,28 @@ def extract_plain_frames(
         "-y",
         "-i",
         str(video_path),
-        "-vf",
-        f"fps={fps},scale=w='min(iw,{width})':h=-2",
+        "-fps_mode",
+        "vfr",
         "-q:v",
         "3",
         str(output_dir / f"{prefix}-%06d.jpg"),
     ]
-    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    # A long video's selection can exceed the OS argument-length limit.
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".ffilter") as script:
+        script.write(filters)
+        script.flush()
+        command[-1:-1] = ["-/filter:v", script.name]
+        completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode != 0:
         raise MediaError(f"frame extraction failed: {completed.stderr.strip()}")
     paths = sorted(output_dir.glob(f"{prefix}-*.jpg"))
-    return [(min(round(index / fps, 3), duration_s), path) for index, path in enumerate(paths)]
+    if selected is not None and len(paths) != len(selected):
+        raise MediaError(f"requested {len(selected)} frames, extracted {len(paths)}")
+    numbers = range(len(paths)) if selected is None else selected
+    return [
+        (min(round(index / fps + (first_center_s or 0), 3), duration_s), path)
+        for index, path in zip(numbers, paths, strict=True)
+    ]
 
 
 def montage_cell_size(width: int, height: int, n: int) -> tuple[int, int]:

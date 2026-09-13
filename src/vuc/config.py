@@ -93,8 +93,8 @@ class OCRConfig:
     scan_fps: float
     scan_width: int
     workers: int
-    # A frame is read when this fraction of its text-layout grid has moved
-    # since the last frame read.
+    # Whole-frame changes are checked on the one-second base clock. Dense
+    # rescans are confined to measured, changing text regions.
     change_threshold: float
     # Where to look after a cut. The montage lands at 0.25s to catch the new
     # shot; OCR waits longer, because that quarter second is often still the

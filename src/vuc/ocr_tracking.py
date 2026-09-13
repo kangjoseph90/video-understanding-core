@@ -511,6 +511,16 @@ def _track_observations(
         survivors = []
         for i, track in enumerate(active):
             if i not in used_tracks:
+                if observation.discovery and not any(
+                    left <= track.box.left
+                    and top <= track.box.top
+                    and right >= track.box.right
+                    and bottom >= track.box.bottom
+                    for left, top, right, bottom in observation.regions
+                ):
+                    # A crop is no evidence about text elsewhere in the frame.
+                    survivors.append(track)
+                    continue
                 if track.missed is None:
                     track.missed = now
                 # A replacement at the same box is positive evidence of a
@@ -536,7 +546,13 @@ def _track_observations(
     return completed
 
 
-def _supported_rows(tracks: Sequence[tuple[Track, float]], *, config: OCRConfig) -> set[int]:
+def _supported_rows(
+    tracks: Sequence[tuple[Track, float]],
+    *,
+    config: OCRConfig,
+    verified: set[int] | None = None,
+    trusted_times: set[float] | None = None,
+) -> set[int]:
     """Require repetition of either the reading or its measured text slot.
 
     Fast captions may each appear in only one sampled frame. A stable text slot
@@ -548,6 +564,7 @@ def _supported_rows(tracks: Sequence[tuple[Track, float]], *, config: OCRConfig)
         (t, serial, line)
         for serial, (track, _) in enumerate(tracks)
         for t, line in track.samples.items()
+        if trusted_times is None or t in trusted_times
     )
     from bisect import bisect_left, bisect_right
 
@@ -568,7 +585,12 @@ def _supported_rows(tracks: Sequence[tuple[Track, float]], *, config: OCRConfig)
             if not isinstance(region, RegionLine):
                 continue
             peers = {owners[id(row)] for row in region.rows if row.height > config.min_text_height}
-            repeated = {i for i in peers if len(tracks[i][0].samples) >= 2}
+            repeated = {
+                i
+                for i in peers
+                if sum(trusted_times is None or t in trusted_times for t in tracks[i][0].samples)
+                >= 2
+            }
             if len(repeated) >= 2:
                 context_supported.update(peers)
     supported = set()
@@ -577,8 +599,11 @@ def _supported_rows(tracks: Sequence[tuple[Track, float]], *, config: OCRConfig)
         key = text_key(best.text)
         if len(key) <= 2 and _confidence(best) < config.singleton_confidence:
             continue
-        if len(track.samples) >= 2:
+        count = sum(trusted_times is None or t in trusted_times for t in track.samples)
+        if count >= 2 or (verified is not None and id(best) in verified):
             supported.add(id(best))
+            continue
+        if count == 0:
             continue
         if _confidence(best) < config.singleton_confidence:
             continue
@@ -609,6 +634,109 @@ def _supported_rows(tracks: Sequence[tuple[Track, float]], *, config: OCRConfig)
     return supported
 
 
+def _prepare_observations(
+    observations: Sequence[Observation], config: OCRConfig
+) -> list[Observation]:
+    return [
+        Observation(
+            o.timestamp_s,
+            tuple(
+                _present(
+                    [line for line in o.lines if not o.discovery or len(text_key(line.text)) >= 3],
+                    config,
+                )
+            ),
+            discovery=o.discovery,
+            regions=o.regions,
+        )
+        for o in sorted(observations, key=lambda o: o.timestamp_s)
+        if not o.verification
+    ]
+
+
+def verification_targets(
+    observations: Sequence[Observation],
+    *,
+    duration_s: float,
+    config: OCRConfig,
+) -> dict[float, list[OCRLine]]:
+    """Request neighbours only for readable rows lacking sufficient support.
+
+    One/two-glyph predictions remain under the existing conservative policy.
+    More samples must not be an automatic escape hatch for isolated shapes.
+    """
+    prepared = _prepare_observations(observations, config)
+    tracks = _track_observations(prepared, duration_s=duration_s, config=config)
+    supported = _supported_rows(
+        tracks,
+        config=config,
+        trusted_times={o.timestamp_s for o in prepared if not o.discovery},
+        verified=_verified_rows(tracks, observations, config=config),
+    )
+    targets: dict[float, list[OCRLine]] = {}
+    for track, _ in tracks:
+        row = track.representative
+        if (
+            len(text_key(row.text)) >= 3
+            and row.height >= config.min_text_height
+            and id(row) not in supported
+        ):
+            timestamp = max(track.samples, key=lambda t: _confidence(track.samples[t]))
+            targets.setdefault(timestamp, []).append(track.samples[timestamp])
+    return targets
+
+
+def _verified_rows(
+    tracks: Sequence[tuple[Track, float]],
+    observations: Sequence[Observation],
+    *,
+    config: OCRConfig,
+) -> set[int]:
+    from bisect import bisect_left, bisect_right
+
+    probes = sorted(observations, key=lambda o: o.timestamp_s)
+    times = [o.timestamp_s for o in probes]
+    rows = [(*probe.lines, *_present(probe.lines, config)) for probe in probes]
+    verified = set()
+    radius = max(0.5, 1.0 / config.scan_fps) + 0.001
+    for track, _ in tracks:
+        best = track.representative
+        key = text_key(best.text)
+        if len(key) < 3:
+            continue
+        anchor = max(
+            track.samples,
+            key=lambda t: (text_key(track.samples[t].text) == key, _confidence(track.samples[t])),
+        )
+        agreement = {anchor}
+        clearest = _confidence(best)
+        for i in range(bisect_left(times, anchor - radius), bisect_right(times, anchor + radius)):
+            if times[i] == anchor:
+                continue
+            # Animated captions move inside a shot. Verify against the nearest
+            # measured box on the track, not the representative's old position.
+            reference = track.samples[min(track.samples, key=lambda t: abs(t - times[i]))]
+            # Compare raw detections as well as assembled rows: an unrelated
+            # glyph beside the caption must not invalidate its clean reading.
+            for line in rows[i]:
+                if (
+                    text_key(line.text) == key
+                    and min(_confidence(best), _confidence(line)) >= config.min_confidence
+                    and spatial_overlap(reference, line) >= 0.8
+                    and min(reference.height, line.height)
+                    >= 0.75 * max(reference.height, line.height)
+                ):
+                    agreement.add(times[i])
+                    clearest = max(clearest, _confidence(line))
+                    break
+        # Confidence alone is unstable near its threshold. Two measurements
+        # need one clear reading; otherwise require three exact, colocated
+        # readings. This establishes presence, never a frequency-voted spelling.
+        if len(agreement) >= 3 or (len(agreement) >= 2 and clearest >= config.singleton_confidence):
+            verified.add(id(best))
+    return verified
+
+
 def track_cues(
     observations: Sequence[Observation], *, duration_s: float, config: OCRConfig
 ) -> list[TextCue]:
@@ -619,19 +747,21 @@ def track_cues(
     drag a persistent label into every successive caption.
     """
     prepared = [
-        Observation(o.timestamp_s, tuple(_present(o.lines, config)))
-        for o in sorted(observations, key=lambda o: o.timestamp_s)
-        if 0 <= o.timestamp_s < duration_s
+        o for o in _prepare_observations(observations, config) if 0 <= o.timestamp_s < duration_s
     ]
     row_tracks = _track_observations(prepared, duration_s=duration_s, config=config)
     size_evidence: SizeEvidence = {}
     for observation in observations:
+        if observation.verification:
+            continue
         for line in observation.lines:
             if text_key(line.text) and _confidence(line) >= config.min_confidence:
                 size_evidence.setdefault(text_key(line.text), []).append(
                     (line.left, line.right, line.height)
                 )
-    tolerance = min(2.0, 1.0 / config.scan_fps)
+    # Dense acquisition improves evidence; it must not tighten the existing
+    # one-second allowance for fragmented/growing text.
+    tolerance = min(2.0, max(1.0, 1.0 / config.scan_fps))
     row_runs = [(track.start, end, track.representative) for track, end in row_tracks]
     eligible = {
         id(line)
@@ -642,7 +772,12 @@ def track_cues(
             size_evidence=size_evidence,
         )
     }
-    eligible &= _supported_rows(row_tracks, config=config)
+    eligible &= _supported_rows(
+        row_tracks,
+        config=config,
+        verified=_verified_rows(row_tracks, observations, config=config),
+        trusted_times={o.timestamp_s for o in prepared if not o.discovery},
+    )
     identities = {}
     for track, _ in row_tracks:
         if id(track.representative) in eligible:
@@ -669,6 +804,8 @@ def track_cues(
                     compatible=co_lived,
                 )
             ),
+            discovery=o.discovery,
+            regions=o.regions,
         )
         for o in prepared
     ]

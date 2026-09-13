@@ -22,6 +22,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
+from functools import partial
 from pathlib import Path
 
 
@@ -53,8 +54,10 @@ def main() -> int:
         if not request:
             continue
         try:
-            paths = [Path(item) for item in json.loads(request)["paths"]]
-            batch = list(pool.map(engine.read, paths))
+            payload = json.loads(request)
+            paths = [Path(item) for item in payload["paths"]]
+            reader = partial(engine.read, cropped=bool(payload.get("cropped", False)))
+            batch = list(pool.map(reader, paths))
         except Exception as exc:  # noqa: BLE001 - one bad batch is not fatal
             reply({"error": f"{type(exc).__name__}: {exc}"})
             continue

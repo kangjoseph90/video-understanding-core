@@ -11,6 +11,7 @@ as a continuation of the transcript.
 
 from __future__ import annotations
 
+import math
 import re
 import unicodedata
 from collections.abc import Iterable
@@ -55,7 +56,7 @@ def render_audio_index(segments: Iterable[Segment]) -> str:
 
 
 def text_cue_line(cue: TextCue) -> str:
-    return f"[{format_span(cue.start, cue.end)}, {text_location(cue)}] {cue.text}"
+    return f"[{format_span(cue.start, math.ceil(cue.end))}, {text_location(cue)}] {cue.text}"
 
 
 def render_text_index(cues: Iterable[TextCue]) -> str:
@@ -88,11 +89,12 @@ def render_text_index(cues: Iterable[TextCue]) -> str:
             else:
                 intervals.append((cue.start, cue.end, location))
         if len({location for _, _, location in intervals}) == 1:
-            spans = "; ".join(format_span(start, end) for start, end, _ in intervals)
+            spans = "; ".join(format_span(start, math.ceil(end)) for start, end, _ in intervals)
             spans += f", {intervals[0][2]}"
         else:
             spans = "; ".join(
-                f"{format_span(start, end)}, {location}" for start, end, location in intervals
+                f"{format_span(start, math.ceil(end))}, {location}"
+                for start, end, location in intervals
             )
         representative = max(
             group,

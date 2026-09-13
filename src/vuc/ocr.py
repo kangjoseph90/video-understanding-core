@@ -17,6 +17,7 @@ import subprocess
 import sys
 import unicodedata
 from collections.abc import Sequence
+from copy import copy
 from dataclasses import asdict, dataclass
 from difflib import SequenceMatcher
 from functools import lru_cache
@@ -77,7 +78,9 @@ class OCRLine:
 class OCREngine(Protocol):
     name: str
 
-    def read_many(self, image_paths: Sequence[Path]) -> list[list[OCRLine]]: ...
+    def read_many(
+        self, image_paths: Sequence[Path], *, cropped: bool = False
+    ) -> list[list[OCRLine]]: ...
 
 
 def rapidocr_options(config: OCRConfig) -> dict[str, object]:
@@ -144,26 +147,33 @@ class RapidOCREngine:
                 )
             )
 
-    def read(self, image_path: Path) -> list[OCRLine]:
+    def read(self, image_path: Path, *, cropped: bool = False) -> list[OCRLine]:
         with Image.open(image_path) as image:
             width = float(image.width) or 1.0
             height = float(image.height) or 1.0
             pixels_for_hash = image.convert("L")
+        engine = self._engine
+        if cropped:
+            # Reuse the ONNX sessions, but keep per-call preprocessing private.
+            # The wheel otherwise blows a narrow crop up to 736px high.
+            engine = copy(self._engine)
+            engine.text_det = copy(self._engine.text_det)
+            engine.text_det.limit_type = "max"
         if self._fallback is None:
-            result, _ = self._engine(str(image_path), use_cls=self.config.use_angle_cls)
+            result, _ = engine(str(image_path), use_cls=self.config.use_angle_cls)
         else:
             # Unknown language: detect once, then compare recognisers on the
             # same crops. Never consult audio or infer a script from a filename.
             import numpy as np
 
-            boxes, _ = self._engine(str(image_path), use_rec=False, use_cls=False)
+            boxes, _ = engine(str(image_path), use_rec=False, use_cls=False)
             result = []
             if boxes:
-                pixels = self._engine.load_img(str(image_path))
-                crops = self._engine.get_crop_img_list(pixels, np.array(boxes, dtype=np.float32))
+                pixels = engine.load_img(str(image_path))
+                crops = engine.get_crop_img_list(pixels, np.array(boxes, dtype=np.float32))
                 if self.config.use_angle_cls:
-                    crops, _, _ = self._engine.text_cls(crops)
-                primary, _ = self._engine.text_rec(crops)
+                    crops, _, _ = engine.text_cls(crops)
+                primary, _ = engine.text_rec(crops)
                 # Clear Latin text needs no Hangul second opinion. Keep CJK
                 # and short/uncertain readings eligible: a Chinese recogniser
                 # can be confidently wrong on an unsupported Korean script.
@@ -206,8 +216,10 @@ class RapidOCREngine:
             )
         return reading_order(lines)
 
-    def read_many(self, image_paths: Sequence[Path]) -> list[list[OCRLine]]:
-        return [self.read(path) for path in image_paths]
+    def read_many(
+        self, image_paths: Sequence[Path], *, cropped: bool = False
+    ) -> list[list[OCRLine]]:
+        return [self.read(path, cropped=cropped) for path in image_paths]
 
 
 class IsolatedOCREngine:
@@ -244,11 +256,13 @@ class IsolatedOCREngine:
             raise OCRError("OCR worker exited before answering")
         return json.loads(reply)
 
-    def read_many(self, image_paths: Sequence[Path]) -> list[list[OCRLine]]:
+    def read_many(
+        self, image_paths: Sequence[Path], *, cropped: bool = False
+    ) -> list[list[OCRLine]]:
         results: list[list[OCRLine]] = []
         for start in range(0, len(image_paths), self.batch_size):
             batch = image_paths[start : start + self.batch_size]
-            reply = self._exchange({"paths": [str(path) for path in batch]})
+            reply = self._exchange({"paths": [str(path) for path in batch], "cropped": cropped})
             if "error" in reply:
                 raise OCRError(str(reply["error"]))
             results.extend([OCRLine(**item) for item in lines] for lines in reply["frames"])
@@ -315,7 +329,7 @@ def crop_fingerprint(image: Image.Image, box: tuple[float, float, float, float])
     if box[2] <= box[0] or box[3] <= box[1]:
         return ""
     crop = image.crop(box).resize((33, 8), Image.Resampling.BILINEAR)
-    values = list(crop.getdata())
+    values = list(crop.tobytes())
     bits = 0
     for y in range(8):
         for x in range(32):
@@ -360,6 +374,13 @@ class Observation:
 
     timestamp_s: float
     lines: tuple[OCRLine, ...] = ()
+    # Neighbour probes verify an existing candidate. Their other predictions
+    # neither create tracks nor change the timeline of unrelated text.
+    verification: bool = False
+    # Extra change-driven samples require direct textual corroboration; they
+    # cannot turn incidental repeated shapes into established text slots.
+    discovery: bool = False
+    regions: tuple[tuple[float, float, float, float], ...] = ()
 
 
 def text_signature(image: Image.Image, *, cells: tuple[int, int] = (16, 9)) -> tuple[int, ...]:
@@ -406,20 +427,36 @@ def ocr_candidates(
         nearest = min(range(len(frames)), key=lambda index: abs(frames[index][0] - moment))
         chosen.add(nearest)
 
-    previous: tuple[int, ...] = ()
-    last_read = -float("inf")
-    for index, (timestamp, path) in enumerate(frames):
+    def edges(path: Path) -> Image.Image:
         with Image.open(path) as source:
             source.thumbnail((config.scan_width, config.scan_width), Image.Resampling.LANCZOS)
-            signature = text_signature(source.convert("RGB"))
-        if (
+            return source.convert("L").filter(ImageFilter.FIND_EDGES)
+
+    previous: tuple[int, ...] = ()
+    current = edges(frames[0][1])
+    last_read = -float("inf")
+    last_check = -float("inf")
+    for index, (timestamp, _path) in enumerate(frames):
+        signature = tuple(
+            value // 16 for value in current.resize((16, 9), Image.Resampling.BOX).tobytes()
+        )
+        check_base = timestamp - last_check >= 1.0
+        if check_base:
+            last_check = timestamp
+        base = (
             index in chosen
             or timestamp - last_read >= config.refresh_s
-            or signature_changed(previous, signature, threshold=config.change_threshold)
-        ):
+            or (
+                check_base
+                and signature_changed(previous, signature, threshold=config.change_threshold)
+            )
+        )
+        if base:
             chosen.add(index)
             previous = signature
             last_read = timestamp
+        if index + 1 < len(frames):
+            current = edges(frames[index + 1][1])
     return sorted(chosen)
 
 
@@ -440,24 +477,94 @@ def scan_text(
     output_dir.mkdir(parents=True, exist_ok=True)
     for stale in output_dir.glob("text-*.jpg"):
         stale.unlink()
-    frames = extract_plain_frames(
-        video_path,
-        output_dir,
-        prefix="text",
-        fps=config.scan_fps,
-        width=config.recognition_width,
-        duration_s=duration_s,
-    )
     try:
-        picked = ocr_candidates(frames, config=config, required_s=required_s)
-        read = engine.read_many([frames[index][1] for index in picked])
+        frames = extract_plain_frames(
+            video_path,
+            output_dir,
+            prefix="text-scan",
+            fps=config.scan_fps,
+            width=config.scan_width,
+            duration_s=duration_s,
+            first_center_s=0.5,
+        )
+        base_frames = extract_plain_frames(
+            video_path,
+            output_dir,
+            prefix="text-base",
+            fps=min(1.0, config.scan_fps),
+            width=config.recognition_width,
+            duration_s=duration_s,
+            first_center_s=0.5,
+        )
+        base_picked = ocr_candidates(base_frames, config=config, required_s=required_s)
+        by_time = {timestamp: i for i, (timestamp, _) in enumerate(frames)}
+        picked = [by_time[base_frames[i][0]] for i in base_picked if base_frames[i][0] in by_time]
+        paths = {
+            by_time[timestamp]: path for timestamp, path in base_frames if timestamp in by_time
+        }
+        read = engine.read_many([paths[index] for index in picked])
+        observations = [
+            Observation(frames[i][0], tuple(lines)) for i, lines in zip(picked, read, strict=True)
+        ]
+        from vuc.ocr_rescan import (
+            Region,
+            add_region,
+            changing_regions,
+            in_changing_region,
+            padded_box,
+            read_regions,
+            region_candidates,
+        )
+        from vuc.ocr_tracking import verification_targets
+
+        windows = changing_regions(observations, config=config)
+        plans = region_candidates(frames, observations, config=config)
+        available = sorted(
+            {
+                j
+                for i in (*picked, *plans)
+                for j in (i - 2, i - 1, i, i + 1, i + 2)
+                if 0 <= j < len(frames) and j not in paths
+            }
+        )
+        extra_frames = extract_plain_frames(
+            video_path,
+            output_dir,
+            prefix="text-extra",
+            fps=config.scan_fps,
+            width=config.recognition_width,
+            duration_s=duration_s,
+            indices=available,
+            first_center_s=0.5,
+        )
+        paths.update(zip(available, (path for _, path in extra_frames), strict=True))
+        observations.extend(read_regions(frames, paths, plans, engine, output_dir))
+        needed = verification_targets(observations, duration_s=duration_s, config=config)
+        by_time = {timestamp: i for i, (timestamp, _) in enumerate(frames)}
+        probes: dict[int, list[Region]] = {}
+        base = set(picked)
+        for timestamp, rows in needed.items():
+            i = by_time[timestamp]
+            for line in rows:
+                if not in_changing_region(timestamp, line, windows):
+                    continue
+                for j in (i - 2, i - 1, i + 1, i + 2):
+                    if j in paths and j not in base and abs(frames[j][0] - timestamp) <= 0.501:
+                        add_region(probes, j, padded_box((line,)), rows=(line,))
+        observations.extend(
+            read_regions(
+                frames,
+                paths,
+                probes,
+                engine,
+                output_dir,
+                verification=True,
+            )
+        )
+        observations.sort(key=lambda item: item.timestamp_s)
     finally:
-        for _, path in frames:
+        for path in output_dir.glob("text-*.jpg"):
             path.unlink(missing_ok=True)
-    observations = [
-        Observation(frames[index][0], tuple(lines))
-        for index, lines in zip(picked, read, strict=True)
-    ]
     # Keep measured boxes/confidences, including rejected readings, for audits
     # and cheap tracker replays without invoking OCR again.
     temporary = output_dir / "observations.jsonl.tmp"

@@ -67,7 +67,9 @@ class StubOCREngine:
         self.lines = list(lines)
         self.reads: list[str] = []
 
-    def read_many(self, image_paths: Sequence[Path]) -> list[list[OCRLine]]:
+    def read_many(
+        self, image_paths: Sequence[Path], *, cropped: bool = False
+    ) -> list[list[OCRLine]]:
         self.reads.extend(path.name for path in image_paths)
         return [list(self.lines) for _ in image_paths]
 

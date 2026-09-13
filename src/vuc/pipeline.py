@@ -297,6 +297,9 @@ def index_video(
                     result_summary={
                         "sampled": sampled,
                         "read": len(observations),
+                        "verification_reads": sum(item.verification for item in observations),
+                        "discovery_reads": sum(item.discovery for item in observations),
+                        "crop_reads": sum(len(item.regions) for item in observations),
                         "with_text": sum(1 for item in observations if item.lines),
                         "cues": len(cues),
                     },

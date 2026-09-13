@@ -27,7 +27,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--output-dir must not already exist; existing results are never overwritten")
     raw = args.observations.read_bytes()
     observations = [
-        Observation(item["timestamp_s"], tuple(OCRLine(**row) for row in item["lines"]))
+        Observation(
+            item["timestamp_s"],
+            tuple(OCRLine(**row) for row in item["lines"]),
+            verification=item.get("verification", False),
+            discovery=item.get("discovery", False),
+            regions=tuple(tuple(box) for box in item.get("regions", ())),
+        )
         for item in (json.loads(row) for row in raw.splitlines() if row.strip())
     ]
     config = load_config(args.config).ocr
