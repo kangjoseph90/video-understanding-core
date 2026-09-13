@@ -6,6 +6,7 @@ from pathlib import Path
 from vuc.agent import build_prompt_body
 from vuc.hints import Chapter, VideoHints, load_video_hints
 from vuc.indexer import SENSEVOICE_LANGUAGES
+from vuc.models import AudioIndex
 
 SIDECAR = {
     "title": "Vegetable Pancake (Yachaejeon: 야채전)",
@@ -77,16 +78,17 @@ def test_asr_prompt_falls_back_to_channel_and_title_without_chapters() -> None:
     assert hints.asr_prompt(0, 180) == "あかね的日本語教室 - 東京Vlog"
 
 
-def test_prompt_body_inserts_metadata_before_the_transcript() -> None:
+def test_prompt_body_inserts_metadata_before_the_indexes() -> None:
     hints = VideoHints(title="T", channel="C", chapters=(Chapter(0, 18, "Intro"),))
-    body = build_prompt_body("질의", 603.0, "전체 SenseVoice 인덱스", "[0-18] <en> hi", hints)
+    body = build_prompt_body("질의", 603.0, audio_index="[0-18] <en> hi", hints=hints)
 
     assert body.index("영상 메타데이터") < body.index("영상 길이: 603")
+    assert body.index("영상 길이: 603") < body.index("음성 인덱스")
     assert body.endswith("[0-18] <en> hi")
 
 
 def test_prompt_body_without_hints_is_unchanged() -> None:
-    body = build_prompt_body("질의", 603.0, "전체 SenseVoice 인덱스", "[0-18] <en> hi")
+    body = build_prompt_body("질의", 603.0, audio_index="[0-18] <en> hi")
 
     assert "영상 메타데이터" not in body
 
@@ -104,7 +106,7 @@ def test_language_hint_falls_back_to_metadata_when_the_index_is_empty(
 
     service, _ = make_service(tmp_path, monkeypatch)
     # baseline_full builds an index with no segments at all.
-    object.__setattr__(service.index, "segments", ())
+    object.__setattr__(service.index, "audio", AudioIndex())
 
     assert service._language_hint(0, 180) is None
 

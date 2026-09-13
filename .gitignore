@@ -7,3 +7,6 @@ __pycache__/
 *.pyc
 dist/
 build/
+
+# OCR recognition models, fetched by scripts/fetch_ocr_models.py
+models/

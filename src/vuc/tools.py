@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from vuc.advanced_asr import AdvancedASRProvider, create_advanced_asr
+from vuc.advanced_asr import AdvancedASRProvider, ASRResult, create_advanced_asr
+from vuc.audio import AudioEventTagger, Region, create_event_tagger, keep_tags
 from vuc.cache import VideoCache
 from vuc.config import AppConfig
 from vuc.frames import (
@@ -20,7 +21,8 @@ from vuc.frames import (
 )
 from vuc.hints import VideoHints
 from vuc.media import extract_audio_segment
-from vuc.models import VideoIndex
+from vuc.models import NON_SPEECH, SPEECH, VideoIndex
+from vuc.timeline import Span
 from vuc.trace import TraceWriter
 
 VIEW_FRAMES_SCHEMA = {
@@ -50,8 +52,8 @@ TRANSCRIBE_SEGMENT_SCHEMA = {
     "function": {
         "name": "transcribe_segment",
         "description": (
-            "Transcribe a selected interval with the advanced ASR provider. "
-            "The interval is limited by the configured tool maximum."
+            "Re-examine a selected interval and return a more precise account of "
+            "what is audible in it. The interval is limited by the configured maximum."
         ),
         "parameters": {
             "type": "object",
@@ -64,6 +66,12 @@ TRANSCRIBE_SEGMENT_SCHEMA = {
         },
     },
 }
+
+
+# A sliver left over from clipping the VAD split to the requested interval is
+# not worth cutting an audio file for, and an ASR handed 80ms of a word will
+# happily invent a sentence out of it.
+MIN_TOOL_REGION_S = 0.4
 
 
 class ToolError(RuntimeError):
@@ -87,6 +95,7 @@ class ToolService:
         config: AppConfig,
         trace_path: Path,
         provider: AdvancedASRProvider | None = None,
+        tagger: AudioEventTagger | None = None,
         hints: VideoHints | None = None,
     ) -> None:
         self.video_path = video_path
@@ -95,6 +104,8 @@ class ToolService:
         self.config = config
         self.hints = hints
         self._provider = provider
+        self._tagger = tagger
+        self._tagger_ready = tagger is not None
         self.trace = TraceWriter(trace_path)
         self.asr_processing_s = 0.0
         self.cloud_asr_cost_usd = 0.0
@@ -105,6 +116,35 @@ class ToolService:
         if self._provider is None:
             self._provider = create_advanced_asr(self.config.advanced_asr)
         return self._provider
+
+    @property
+    def tagger(self) -> AudioEventTagger | None:
+        """Built on first use, and never allowed to take a tool call down.
+
+        The tool is asked for a better account of an interval; if the labeller
+        cannot be had, the speech half of that account is still worth
+        returning.
+        """
+        if not self._tagger_ready:
+            self._tagger_ready = True
+            error: str | None = None
+            try:
+                self._tagger = create_event_tagger(self.config.audio_events)
+            except Exception as exc:  # noqa: BLE001 - degrade, do not abort the call
+                self._tagger = None
+                error = str(exc)
+            if self._tagger is None and self.config.audio_events.tagger != "none":
+                # The sensevoice tagger needs a transcriber this service does not
+                # own, so asking for it here yields nothing. Say so; a silently
+                # untagged non-speech region is indistinguishable from a silent one.
+                self.trace.write(
+                    step="agent",
+                    event="event_tagger_unavailable",
+                    arguments={"tagger": self.config.audio_events.tagger},
+                    result_summary={"error": error},
+                    duration_ms=0,
+                )
+        return self._tagger
 
     @property
     def provider_name(self) -> str:
@@ -155,7 +195,8 @@ class ToolService:
         properties["n"]["enum"] = list(self.config.view_frames.grid_options)
         transcript = deepcopy(TRANSCRIBE_SEGMENT_SCHEMA)
         transcript["function"]["description"] = (
-            "Transcribe a selected interval with the advanced ASR provider. "
+            "Re-examine a selected interval and return a more precise account of "
+            "what is audible in it, in the same [start-end] form as the index. "
             f"The interval may be at most {self.tool_max_segment_s:.0f} seconds."
         )
         return [frames, transcript]
@@ -262,7 +303,7 @@ class ToolService:
         """
         languages = {
             segment.language
-            for segment in self.index.segments
+            for segment in self.index.audio.segments
             if segment.end > start_s
             and segment.start < end_s
             and segment.language not in {"unknown", "nospeech"}
@@ -271,21 +312,86 @@ class ToolService:
             return next(iter(languages))
         return self.hints.language if self.hints else None
 
-    @staticmethod
-    def _transcript_lines(sentences: list[dict[str, Any]]) -> str:
-        return "\n".join(
-            f"[{format_span(sentence['start_s'], sentence['end_s'])}] {sentence['text']}"
-            for sentence in sentences
-            if str(sentence.get("text") or "").strip()
+    def _regions(self, span: Span) -> list[Region]:
+        """The VAD split, clipped to what was asked for.
+
+        The index already holds that split, so the tool reuses it rather than
+        running a second detector that could disagree with the very timeline
+        the agent is citing. baseline_full builds no index, so there is nothing
+        to reuse and the interval is treated as speech throughout.
+        """
+        clipped = [
+            Region(
+                Span(max(span.start, segment.start), min(span.end, segment.end)),
+                segment.kind,
+            )
+            for segment in self.index.audio.segments
+            if segment.end > span.start and segment.start < span.end
+        ]
+        kept = [region for region in clipped if region.span.duration >= MIN_TOOL_REGION_S]
+        return kept or [Region(span, SPEECH)]
+
+    def _region_result(
+        self,
+        region: Region,
+        clip: Path,
+        *,
+        language_hint: str | None,
+        prompt: str,
+    ) -> tuple[list[dict[str, Any]], ASRResult | None]:
+        """One region, answered by whichever model that side of the split calls for."""
+        if not region.is_speech:
+            tagger = self.tagger
+            tags = tagger.tag(clip, duration_s=region.span.duration) if tagger else []
+            events = keep_tags(tags, config=self.config.audio_events)
+            if not events:
+                return [], None
+            return [
+                {
+                    "start_s": region.span.start,
+                    "end_s": region.span.end,
+                    "kind": NON_SPEECH,
+                    "text": "",
+                    "events": list(events),
+                }
+            ], None
+
+        result = self.provider.transcribe(
+            clip,
+            audio_duration_s=region.span.duration,
+            language_hint=language_hint,
+            prompt=prompt or None,
         )
+        lines = [
+            {
+                "start_s": round(min(region.span.start + sentence.start_s, region.span.end), 3),
+                "end_s": round(min(region.span.start + sentence.end_s, region.span.end), 3),
+                "kind": SPEECH,
+                "text": sentence.text.strip(),
+                "events": [],
+            }
+            for sentence in result.sentences
+            if sentence.text.strip()
+        ]
+        return lines, result
+
+    @staticmethod
+    def _transcript_lines(segments: list[dict[str, Any]]) -> str:
+        """The same shape the index uses, so every line the model reads matches."""
+        rendered = []
+        for segment in segments:
+            tags = " ".join(f"<{event}>" for event in segment.get("events") or ())
+            body = " ".join(part for part in (tags, segment.get("text") or "") if part)
+            span = format_span(segment["start_s"], segment["end_s"])
+            rendered.append(f"[{span}] {body}".rstrip())
+        return "\n".join(rendered)
 
     def _transcribe(self, start_s: Any, end_s: Any, *, maximum_s: float) -> ToolExecution:
         start, end = self._range(start_s, end_s)
         duration = end - start
         if duration > maximum_s + 1e-6:
             raise ToolError(
-                f"transcribe_segment interval is {duration:.3f}s; "
-                f"the limit is {maximum_s:.0f}s"
+                f"transcribe_segment interval is {duration:.3f}s; the limit is {maximum_s:.0f}s"
             )
         prompt = self.hints.asr_prompt(start, end) if self.hints else ""
         arguments = {
@@ -293,6 +399,7 @@ class ToolService:
             "end_s": end,
             "provider": self.provider_name,
             "model": self.provider_model_name,
+            "tagger": self.config.audio_events.tagger,
             # The prompt steers the transcript, so it belongs in the cache key.
             "prompt": prompt,
         }
@@ -301,44 +408,59 @@ class ToolService:
             data = json.loads(result_path.read_text(encoding="utf-8"))
             return ToolExecution(data={**data, "cache_hit": True})
 
-        audio_path = result_path.with_suffix(".wav")
-        extract_audio_segment(self.cache.audio_path, audio_path, start_s=start, end_s=end)
         language_hint = self._language_hint(start, end)
-        wall_started = time.monotonic()
-        result = self.provider.transcribe(
-            audio_path,
-            audio_duration_s=duration,
-            language_hint=language_hint,
-            prompt=prompt or None,
-        )
-        asr_elapsed = time.monotonic() - wall_started
-        data = result.to_dict()
-        sentences = [
-            {
-                **sentence.to_dict(),
-                "start_s": sentence.start_s + start,
-                "end_s": sentence.end_s + start,
-            }
-            for sentence in result.sentences
-        ]
-        data.update(
-            {
-                "start_s": start,
-                "end_s": end,
-                "sentences": sentences,
-                # Same "[start-end] text" shape the index uses, so every transcript
-                # the model reads is formatted identically.
-                "transcript": self._transcript_lines(sentences),
-                "language_hint": language_hint,
-                "asr_prompt": prompt,
-                "cache_hit": False,
-            }
-        )
+        segments: list[dict[str, Any]] = []
+        results: list[ASRResult] = []
+        asr_elapsed = 0.0
+        speech_s = 0.0
+        for index, region in enumerate(self._regions(Span(start, end))):
+            clip = result_path.with_suffix(f".{index:03d}.wav")
+            extract_audio_segment(
+                self.cache.audio_path, clip, start_s=region.span.start, end_s=region.span.end
+            )
+            try:
+                wall_started = time.monotonic()
+                lines, result = self._region_result(
+                    region, clip, language_hint=language_hint, prompt=prompt
+                )
+                asr_elapsed += time.monotonic() - wall_started
+            finally:
+                clip.unlink(missing_ok=True)
+            segments.extend(lines)
+            if result is not None:
+                results.append(result)
+                speech_s += region.span.duration
+
+        segments.sort(key=lambda item: (item["start_s"], item["end_s"]))
+        provider = results[0].provider if results else self.provider_name
+        # None means unknown, not free: summing Nones into 0.0 would report a
+        # provider that does not price its output as having cost nothing.
+        priced = [item.cost_usd for item in results if item.cost_usd is not None]
+        data: dict[str, Any] = {
+            "start_s": start,
+            "end_s": end,
+            "segments": segments,
+            "transcript": self._transcript_lines(segments),
+            "text": " ".join(item["text"] for item in segments if item["text"]),
+            "language": next((item.language for item in results if item.language), language_hint),
+            "provider": provider,
+            "model": results[0].model if results else self.provider_model_name,
+            "audio_duration_s": round(duration, 3),
+            "speech_duration_s": round(speech_s, 3),
+            "processing_s": round(sum(item.processing_s for item in results), 3),
+            "cost_usd": sum(priced) if priced else None,
+            "language_hint": language_hint,
+            "asr_prompt": prompt,
+            "cache_hit": False,
+        }
         self.cache.write_json(result_path, data)
+        # Model time for the whole call, tagger included: it is excluded from
+        # the agent's wall-clock budget for the same reason the ASR time is.
         self.asr_processing_s += asr_elapsed
-        if result.provider == "cloud":
-            self.cloud_asr_audio_s += duration
-            self.cloud_asr_cost_usd += result.cost_usd or 0.0
+        if provider == "cloud":
+            # Only the speech regions were ever sent to a paid endpoint.
+            self.cloud_asr_audio_s += speech_s
+            self.cloud_asr_cost_usd += data["cost_usd"] or 0.0
         return ToolExecution(data=data, asr_elapsed_s=asr_elapsed)
 
     def transcribe_segment(self, start_s: Any, end_s: Any) -> ToolExecution:

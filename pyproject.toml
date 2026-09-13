@@ -24,6 +24,14 @@ sensevoice = [
 advanced-asr = [
   "faster-whisper>=1.1",
 ]
+ocr = [
+  "rapidocr-onnxruntime>=1.4.4,<2",
+  "huggingface-hub>=0.27",
+]
+audio-events = [
+  "panns-inference>=0.1.1",
+  "librosa>=0.10",
+]
 dev = [
   "pytest>=8.3",
   "ruff>=0.9",

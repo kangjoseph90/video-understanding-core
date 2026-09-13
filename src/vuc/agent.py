@@ -7,8 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from vuc.config import AppConfig
-from vuc.frames import format_span
 from vuc.hints import VideoHints
+from vuc.index_text import (
+    AUDIO_INDEX_LABEL,
+    TEXT_INDEX_LABEL,
+    render_audio_index,
+    render_text_index,
+)
 from vuc.llm import (
     ChatCompletionsClient,
     ChatResult,
@@ -19,7 +24,7 @@ from vuc.llm import (
     output_token_count,
     reasoning_token_count,
 )
-from vuc.models import Segment, VideoIndex
+from vuc.models import VideoIndex
 from vuc.tools import ToolExecution, ToolService
 from vuc.trace import TraceWriter
 
@@ -76,50 +81,57 @@ class AgentBudget:
         return None
 
 
-def _index_line(segment: Segment) -> str:
-    tags = [segment.language, segment.emotion or "", *segment.events]
-    tag_text = " ".join(f"<{tag}>" for tag in tags if tag and tag != "unknown")
-    return (
-        f"[{format_span(segment.start, segment.end)}] {tag_text} {segment.text}"
-    ).strip()
-
-
-def build_index_context(index: VideoIndex) -> str:
-    return "\n".join(_index_line(segment) for segment in index.segments)
-
-
 def build_prompt_body(
     query: str,
     duration_s: float,
-    source_label: str,
-    transcript: str,
+    *,
+    audio_index: str,
+    audio_label: str = AUDIO_INDEX_LABEL,
+    text_index: str = "",
     hints: VideoHints | None = None,
 ) -> str:
-    """Shared preamble so every mode presents its transcript identically."""
+    """The prompt's text half, in four named blocks.
+
+    Query, then metadata, then the audio index, then the text index -- each
+    labelled, each free-standing. The montages are the fourth component and are
+    attached as images beside this. An index that produced nothing is left out
+    rather than shown as an empty heading.
+    """
     blocks = [f"사용자 쿼리:\n{query}"]
     metadata = hints.prompt_block() if hints else ""
     if metadata:
         blocks.append(metadata)
-    blocks.append(
-        f"영상 길이: {int(duration_s)}\n"
-        f"{source_label} (구간 표기는 [시작-끝], 단위는 초):\n{transcript}"
-    )
+    blocks.append(f"영상 길이: {int(duration_s)}")
+    if audio_index:
+        blocks.append(f"{audio_label}:\n{audio_index}")
+    if text_index:
+        blocks.append(f"{TEXT_INDEX_LABEL}:\n{text_index}")
     return "\n\n".join(blocks)
 
 
 def system_prompt() -> str:
     return f"""당신은 긴 영상을 근거 중심으로 분석하는 에이전트다.
 
-분석 규칙:
-- 제공된 SenseVoice 인덱스에는 인식 오류가 있을 수 있다.
-- SenseVoice 인덱스만으로 충분하면 도구 조회는 필수가 아니다.
-- 더 정확한 음성 전사가 필요할 때 transcribe_segment를 사용한다.
-- 더 자세한 시각 정보가 필요할 때 해당 시간 구간을 view_frames로 조회한다.
-- 프레임에 보이는 텍스트(슬라이드, 자막, 화면 텍스트)는 ASR보다 우선 신뢰한다.
-- 모든 시각은 초 단위 숫자다. start_s/end_s도 초 단위 숫자로 적는다.
+입력은 메타데이터, 음성 인덱스, 화면 텍스트 인덱스, 몽타주 이미지다.
 
-초기 SenseVoice 인덱스와 타임스탬프 몽타주를 바탕으로 보고서를 작성하라.
-필요한 경우에만 도구를 사용하라.
+- 메타데이터는 채널이 제공한 채널명, 제목, 챕터다.
+- 음성 인덱스는 영상 전체에서 들린 내용을 시간순으로 적는다. 말은 전사와 언어로,
+  말이 아닌 소리는 <태그>로 표시한다. 아무것도 들리지 않은 구간은 줄이 없다.
+- 화면 텍스트 인덱스는 화면에서 읽힌 글자다. 형식은 [시작-끝, position, size]이며,
+  position은 3×3 위치, size는 줄 높이(small<4%, medium<8%, large≥8%)다. 세미콜론은
+  같은 문구가 나타난 서로 떨어진 구간을 구분한다. 위치와 크기는 부가 정보다.
+- 몽타주는 선택된 시점의 화면과 시각적 맥락을 보여 주며 각 프레임에 시간이 적혀 있다.
+
+근거 사용 원칙:
+- 음성 인덱스와 화면 텍스트 인덱스는 서로 독립적인 관찰이며 별개의 목록이다. 서로
+  정정하거나 대체하지 않으므로 함께 검토하고, 충돌하거나 불확실하면 그대로 밝혀라.
+- 인덱스에는 인식 오류가 있고 몽타주는 일부 시점만 담는다. 어느 입력에 없다는 이유만으로
+  영상에 없었다고 단정하거나, 위치·크기만으로 내용의 종류와 중요도를 판단하지 마라.
+- 인덱스만으로 충분하면 도구는 쓰지 않아도 된다. 답에 필요한 음성이 불확실하면
+  transcribe_segment를, 화면이 불확실하면 view_frames를 사용한다.
+- 모든 시각과 start_s/end_s는 초 단위 숫자로 적는다.
+
+주어진 근거로 사용자 쿼리에 답하는 간결한 보고서를 작성하라.
 {REPORT_SCHEMA}"""
 
 
@@ -155,8 +167,7 @@ def run_agent_loop(
     client: ChatCompletionsClient,
     hints: VideoHints | None = None,
 ) -> tuple[str, dict[str, Any]]:
-    index_text = build_index_context(index)
-    initial_images = [Path(path) for path in index.montages]
+    initial_images = [Path(path) for path in index.visual.montages]
     budget = AgentBudget.start(config)
     trace = service.trace
     messages: list[dict[str, Any]] = [
@@ -165,9 +176,9 @@ def run_agent_loop(
             build_prompt_body(
                 query,
                 index.video.duration_s,
-                "전체 SenseVoice 인덱스",
-                index_text,
-                hints,
+                audio_index=render_audio_index(index.audio.segments),
+                text_index=render_text_index(index.text.cues),
+                hints=hints,
             ),
             initial_images,
         ),

@@ -7,16 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from vuc.advanced_asr import AdvancedASRProvider
-from vuc.agent import (
-    REPORT_SCHEMA,
-    build_index_context,
-    build_prompt_body,
-    run_agent_loop,
-)
+from vuc.agent import REPORT_SCHEMA, build_prompt_body, run_agent_loop
+from vuc.audio import AudioEventTagger
 from vuc.cache import VideoCache, new_run_id, sha256_file
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_sampled_frames, montage_cell_size
 from vuc.hints import VideoHints, load_video_hints
+from vuc.index_text import AUDIO_INDEX_LABEL, render_audio_index, render_text_index
 from vuc.indexer import Transcriber
 from vuc.llm import (
     ChatCompletionsClient,
@@ -30,11 +27,13 @@ from vuc.llm import (
     reasoning_token_count,
 )
 from vuc.media import extract_audio, probe_duration
-from vuc.models import VideoIndex, VideoMetadata
-from vuc.pipeline import index_video
+from vuc.models import AudioIndex, TextIndex, VideoIndex, VideoMetadata, VisualIndex
+from vuc.ocr import OCREngine
+from vuc.pipeline import SCHEMA_VERSION, index_video
 from vuc.report import normalize_report, parse_report_json, write_report
 from vuc.tools import ToolService
 from vuc.trace import TraceWriter
+from vuc.vad import VADProvider
 
 
 def _prepare_baseline_full(
@@ -61,14 +60,12 @@ def _prepare_baseline_full(
         size_bytes=video_path.stat().st_size,
     )
     index = VideoIndex(
-        schema_version=2,
+        schema_version=SCHEMA_VERSION,
         video=metadata,
-        segments=(),
-        frames=(),
-        montages=(),
+        audio=AudioIndex(),
+        text=TextIndex(),
+        visual=VisualIndex(),
         created_at=datetime.now(UTC).isoformat(),
-        indexer={},
-        frame_config={},
     )
     return index, cache
 
@@ -200,22 +197,30 @@ def run_single_pass(
 ) -> tuple[str, dict[str, Any]]:
     started = time.monotonic()
     frames_wall_s = 0.0
+    text_index = ""
     if mode == "baseline_full":
-        transcript, asr_wall_s = _full_advanced_transcript(service, index)
+        audio_index, asr_wall_s = _full_advanced_transcript(service, index)
         images, frames_wall_s = _baseline_full_images(
             video_path, cache, index, config, service.trace
         )
-        source_label = "전체 Whisper 전사"
+        # baseline_full builds no index; the label says where its lines came from.
+        audio_label = "전체 Whisper 전사 (구간 표기는 [시작-끝], 단위는 초)"
     elif mode == "baseline_index_only":
-        transcript = build_index_context(index)
+        audio_index = render_audio_index(index.audio.segments)
+        text_index = render_text_index(index.text.cues)
         asr_wall_s = 0.0
-        images = [Path(path) for path in index.montages]
-        source_label = "전체 SenseVoice 인덱스"
+        images = [Path(path) for path in index.visual.montages]
+        audio_label = AUDIO_INDEX_LABEL
     else:
         raise ValueError(f"unsupported single-pass mode: {mode}")
 
     body = build_prompt_body(
-        query, index.video.duration_s, source_label, transcript, hints
+        query,
+        index.video.duration_s,
+        audio_index=audio_index,
+        audio_label=audio_label,
+        text_index=text_index,
+        hints=hints,
     )
     content: list[dict[str, Any]] = [
         {
@@ -230,7 +235,10 @@ def run_single_pass(
                 "role": "system",
                 "content": (
                     "당신은 영상과 전사를 분석해 근거가 있는 간결한 보고서를 작성한다. "
-                    "프레임에 보이는 텍스트는 ASR보다 우선한다. "
+                    # Same framing as the agentic prompt: the sources are
+                    # independent observations, and neither outranks the other.
+                    "전사와 화면에 보이는 것은 같은 영상에 대한 서로 독립적인 관찰이다. "
+                    "어긋나면 그 사실 자체를 근거로 삼아라. "
                     "모든 시각은 초 단위 숫자다. start_s/end_s도 초 단위 숫자로 적는다."
                 ),
             },
@@ -352,7 +360,11 @@ def run_video(
     query: str | None = None,
     force_index: bool = False,
     index_transcriber: Transcriber | None = None,
+    index_vad: VADProvider | None = None,
+    index_event_tagger: AudioEventTagger | None = None,
+    index_ocr_engine: OCREngine | None = None,
     advanced_provider: AdvancedASRProvider | None = None,
+    event_tagger: AudioEventTagger | None = None,
     llm_client: ChatCompletionsClient | None = None,
     hints: VideoHints | None = None,
 ) -> tuple[dict[str, Any], Path, Path]:
@@ -371,6 +383,9 @@ def run_video(
             video,
             config,
             transcriber=index_transcriber,
+            vad=index_vad,
+            event_tagger=index_event_tagger,
+            ocr_engine=index_ocr_engine,
             force=force_index,
             run_id=run_id,
             hints=hints,
@@ -387,6 +402,7 @@ def run_video(
         config=config,
         trace_path=trace_path,
         provider=advanced_provider,
+        tagger=event_tagger,
         hints=hints,
     )
     client = llm_client or ChatCompletionsClient(config.vision_llm)

@@ -6,19 +6,25 @@ from pathlib import Path
 
 import pytest
 
+from tests.support import StubTagger
 from vuc.advanced_asr import ASRResult, TranscriptSentence
-from vuc.agent import (
-    AgentBudget,
-    _index_line,
-    build_index_context,
-    build_prompt_body,
-    run_agent_loop,
-    system_prompt,
-)
+from vuc.agent import AgentBudget, build_prompt_body, run_agent_loop, system_prompt
 from vuc.cache import VideoCache
 from vuc.config import load_config
+from vuc.index_text import audio_line, render_audio_index, render_text_index
 from vuc.llm import ChatResult
-from vuc.models import FrameArtifact, Segment, VideoIndex, VideoMetadata
+from vuc.models import (
+    NON_SPEECH,
+    AudioIndex,
+    FrameArtifact,
+    Segment,
+    TextCue,
+    TextIndex,
+    VideoIndex,
+    VideoMetadata,
+    VisualIndex,
+)
+from vuc.pipeline import SCHEMA_VERSION
 from vuc.report import normalize_report
 from vuc.run import _full_advanced_transcript
 from vuc.tools import ToolError, ToolService
@@ -67,11 +73,11 @@ def make_service(tmp_path: Path, monkeypatch) -> tuple[ToolService, FakeProvider
     video.write_bytes(b"video")
     metadata = VideoMetadata(str(video), "a" * 64, 600, video.stat().st_size)
     index = VideoIndex(
-        schema_version=2,
+        schema_version=SCHEMA_VERSION,
         video=metadata,
-        segments=(Segment(0, 600, "draft text", "en"),),
-        frames=(),
-        montages=(),
+        audio=AudioIndex((Segment(0, 600, "draft text", "en"),)),
+        text=TextIndex(),
+        visual=VisualIndex(),
         created_at="2026-09-08T00:00:00+00:00",
     )
     cache = VideoCache(config.cache.directory, metadata.sha256)
@@ -102,9 +108,7 @@ def test_transcribe_limit_is_sixty_seconds(tmp_path: Path, monkeypatch) -> None:
         service.transcribe_segment(0, 60.01)
 
 
-def test_tool_limit_stays_sixty_when_provider_allows_more(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_tool_limit_stays_sixty_when_provider_allows_more(tmp_path: Path, monkeypatch) -> None:
     service, provider = make_service(tmp_path, monkeypatch)
     provider.max_segment_s = 600
     object.__setattr__(service.config.advanced_asr.local, "max_segment_s", 600)
@@ -154,11 +158,76 @@ def test_advanced_asr_absolute_timestamps_and_cache(tmp_path: Path, monkeypatch)
     second = service.transcribe_segment(10, 20)
 
     assert first.data["transcript"] == "[11-12] accurate text"
-    assert first.data["sentences"][0]["start_s"] == 11
-    assert first.data["sentences"][0]["end_s"] == 12
+    assert first.data["segments"][0]["start_s"] == 11
+    assert first.data["segments"][0]["end_s"] == 12
     assert first.data["cache_hit"] is False
     assert second.data["cache_hit"] is True
     assert provider.calls == 1
+
+
+def test_the_asr_tool_follows_the_same_split_as_the_index(tmp_path: Path, monkeypatch) -> None:
+    """Speech goes to the ASR, silence goes to the tagger, and the agent sees one list."""
+    service, provider = make_service(tmp_path, monkeypatch)
+    object.__setattr__(
+        service.index,
+        "audio",
+        AudioIndex(
+            (
+                Segment(0, 20, "draft", "en"),
+                Segment(20, 40, "", "unknown", events=("music",), kind=NON_SPEECH),
+                Segment(40, 60, "draft", "en"),
+            )
+        ),
+    )
+    service._tagger = StubTagger()
+    service._tagger_ready = True
+
+    result = service.transcribe_segment(0, 60)
+
+    assert provider.calls == 2
+    assert service._tagger.calls == [20.0]
+    assert result.data["transcript"].splitlines() == [
+        "[1-2] accurate text",
+        "[20-40] <applause>",
+        "[41-42] accurate text",
+    ]
+
+
+def test_the_asr_tool_never_runs_outside_a_speech_region(tmp_path: Path, monkeypatch) -> None:
+    service, provider = make_service(tmp_path, monkeypatch)
+    object.__setattr__(
+        service.index,
+        "audio",
+        AudioIndex((Segment(0, 60, "", "unknown", events=("music",), kind=NON_SPEECH),)),
+    )
+    service._tagger = StubTagger()
+    service._tagger_ready = True
+
+    service.transcribe_segment(0, 60)
+
+    assert provider.calls == 0
+    assert service._tagger.calls == [60.0]
+
+
+def test_a_missing_tagger_still_returns_the_speech_half(tmp_path: Path, monkeypatch) -> None:
+    service, provider = make_service(tmp_path, monkeypatch)
+    object.__setattr__(
+        service.index,
+        "audio",
+        AudioIndex(
+            (
+                Segment(0, 20, "draft", "en"),
+                Segment(20, 40, "", "unknown", kind=NON_SPEECH),
+            )
+        ),
+    )
+    service._tagger = None
+    service._tagger_ready = True
+
+    result = service.transcribe_segment(0, 40)
+
+    assert provider.calls == 1
+    assert result.data["transcript"] == "[1-2] accurate text"
 
 
 def test_transcribe_trace_records_cost_dimensions(tmp_path: Path, monkeypatch) -> None:
@@ -177,11 +246,28 @@ def test_transcribe_trace_records_cost_dimensions(tmp_path: Path, monkeypatch) -
 def test_system_prompt_makes_tools_optional() -> None:
     prompt = system_prompt()
 
-    assert "SenseVoice 인덱스만으로 충분하면 도구 조회는 필수가 아니다" in prompt
+    assert "인덱스만으로 충분하면 도구는 쓰지 않아도 된다" in prompt
     assert "transcribe_segment" in prompt
     assert "view_frames" in prompt
-    assert "프레임에 보이는 텍스트" in prompt
-    assert "모든 시각은 초 단위 숫자다" in prompt
+    assert "모든 시각과 start_s/end_s는 초 단위 숫자로 적는다" in prompt
+
+
+def test_system_prompt_explains_every_input() -> None:
+    """The model is told how to read each one, including that nothing was fused."""
+    prompt = system_prompt()
+
+    assert "메타데이터, 음성 인덱스, 화면 텍스트 인덱스, 몽타주 이미지" in prompt
+    assert "서로 독립적인 관찰이며 별개의 목록이다" in prompt
+    assert "정정하거나 대체하지 않으므로" in prompt
+    assert "아무것도 들리지 않은 구간은 줄이 없다" in prompt
+
+
+def test_the_agent_is_never_told_which_model_produced_a_line() -> None:
+    prompt = system_prompt()
+
+    assert "SenseVoice" not in prompt
+    assert "Whisper" not in prompt
+    assert "PANNs" not in prompt
 
 
 def test_asr_is_excluded_from_agent_budget() -> None:
@@ -256,9 +342,7 @@ def test_tool_schemas_and_montage_limit(tmp_path: Path, monkeypatch) -> None:
         "type": "integer",
         "enum": [1, 2, 3, 4],
     }
-    execution = service.execute(
-        "view_frames", {"start_s": 0, "end_s": 100, "fps": 2, "n": 3}
-    )
+    execution = service.execute("view_frames", {"start_s": 0, "end_s": 100, "fps": 2, "n": 3})
     assert "23 montage images" in execution.data["error"]
     assert "montage limit is 16" in execution.data["error"]
 
@@ -295,20 +379,35 @@ def test_view_frames_rejects_values_outside_enums(tmp_path: Path, monkeypatch) -
         service.view_frames(0, 10, 0.5, 5)
 
 
-def test_full_index_is_never_downsampled() -> None:
-    index = VideoIndex(
-        schema_version=2,
-        video=VideoMetadata("video.mp4", "b" * 64, 100, 1),
-        segments=tuple(
-            Segment(number, number + 1, f"segment-{number}", "en")
-            for number in range(100)
-        ),
-        frames=(),
-        montages=(),
-        created_at="2026-09-08T00:00:00+00:00",
+def test_the_two_indexes_are_separate_blocks_in_the_prompt() -> None:
+    """Four inputs, four named blocks. The text index is not part of the transcript."""
+    body = build_prompt_body(
+        "요약",
+        100,
+        audio_index=render_audio_index((Segment(0, 30, "spoken", "en"),)),
+        text_index=render_text_index((TextCue(4, 12, "Slide title", "top left", "large"),)),
     )
 
-    context = build_index_context(index)
+    assert body == (
+        "사용자 쿼리:\n요약\n\n"
+        "영상 길이: 100\n\n"
+        "음성 인덱스 (구간 표기는 [시작-끝], 단위는 초):\n"
+        "[0-30] <en> spoken\n\n"
+        "화면 텍스트 인덱스 ([시작-끝, position, size] 내용, 반복 구간은 ;로 구분, 단위는 초):\n"
+        "[4-12, top left, large] Slide title"
+    )
+
+
+def test_an_index_that_produced_nothing_is_left_out_entirely() -> None:
+    body = build_prompt_body("요약", 100, audio_index="[0-30] <en> spoken")
+
+    assert "화면 텍스트 인덱스" not in body
+
+
+def test_full_index_is_never_downsampled() -> None:
+    context = render_audio_index(
+        Segment(number, number + 1, f"segment-{number}", "en") for number in range(100)
+    )
 
     assert "segment-0" in context
     assert "segment-99" in context
@@ -336,9 +435,7 @@ def test_report_has_only_plain_citation_fields() -> None:
         meta={"duration_s": 100},
     )
 
-    assert report["sections"][0]["citations"] == [
-        {"claim": "claim", "start_s": 1, "end_s": 2}
-    ]
+    assert report["sections"][0]["citations"] == [{"claim": "claim", "start_s": 1, "end_s": 2}]
     assert report["meta"] == {"duration_s": 100}
 
 
@@ -394,21 +491,22 @@ def test_normalize_report_clamps_negative_values_and_keeps_end_after_start() -> 
 
 
 def test_index_line_labels_timestamps_as_bare_seconds() -> None:
-    line = _index_line(
-        Segment(start=673.0, end=698.0, text="마무리 인사", language="ko")
-    )
+    line = audio_line(Segment(start=673.0, end=698.0, text="마무리 인사", language="ko"))
 
     assert line == "[673-698] <ko> 마무리 인사"
 
 
 def test_every_mode_shares_the_same_prompt_preamble() -> None:
     body = build_prompt_body(
-        "핵심 요약", 698.474, "SenseVoice 전체 인덱스", "[0-18] <ko> 안녕하세요"
+        "핵심 요약",
+        698.474,
+        audio_index="[0-18] <ko> 안녕하세요",
+        audio_label="전체 Whisper 전사 (구간 표기는 [시작-끝], 단위는 초)",
     )
 
     assert body == (
         "사용자 쿼리:\n핵심 요약\n\n"
-        "영상 길이: 698\n"
-        "SenseVoice 전체 인덱스 (구간 표기는 [시작-끝], 단위는 초):\n"
+        "영상 길이: 698\n\n"
+        "전체 Whisper 전사 (구간 표기는 [시작-끝], 단위는 초):\n"
         "[0-18] <ko> 안녕하세요"
     )

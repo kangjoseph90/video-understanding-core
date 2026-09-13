@@ -18,8 +18,19 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.frames.baseline_full_montage_n == 3
     assert (config.montage.width, config.montage.height) == (1344, 756)
     assert config.montage.jpeg_quality == 88
-    assert config.frames.index_interval_s == 15
     assert config.frames.baseline_full_interval_s == 1
+    assert config.vad.provider == "fsmn"
+    assert config.vad.model == "fsmn-vad"
+    assert config.vad.window_max_s == 30
+    assert config.audio_events.tagger == "panns"
+    assert config.visual_scan.max_interval_s == 30
+    assert config.ocr.enabled is True
+    assert config.ocr.engine == "rapidocr"
+    assert config.ocr.rec_model_path.endswith("PP-OCRv6_small_rec.onnx")
+    assert config.ocr.for_language("ko").rec_model_path.endswith("korean_PP-OCRv5_rec.onnx")
+    assert config.ocr.use_angle_cls is False
+    assert config.ocr.for_language("ja").rec_model_path.endswith("PP-OCRv6_small_rec.onnx")
+    assert config.ocr.for_language("en").rec_model_path == config.ocr.rec_model_path
     assert config.advanced_asr.provider == "local"
     assert config.advanced_asr.local.max_segment_s == 180
     assert config.advanced_asr.cloud.max_segment_s == 600
@@ -111,3 +122,28 @@ def test_non_numeric_token_rate_is_rejected(tmp_path: Path, monkeypatch) -> None
 
     with pytest.raises(ValueError, match="VLM_INPUT_COST_PER_MTOK"):
         load_config(config_path)
+
+
+def _with(tmp_path: Path, old: str, new: str) -> Path:
+    project_root = Path(__file__).parents[1]
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        (project_root / "config.yaml").read_text(encoding="utf-8").replace(old, new),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_load_config_rejects_an_unknown_event_tagger(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="audio_events.tagger"):
+        load_config(_with(tmp_path, "tagger: panns", "tagger: magic"))
+
+
+def test_load_config_rejects_sampling_intervals_that_cannot_hold(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="min_interval_s must not exceed"):
+        load_config(_with(tmp_path, "min_interval_s: 2", "min_interval_s: 45"))
+
+
+def test_load_config_rejects_a_zero_length_vad_window(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="vad window lengths"):
+        load_config(_with(tmp_path, "window_max_s: 30", "window_max_s: 0"))

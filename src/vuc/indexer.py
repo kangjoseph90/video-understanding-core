@@ -16,7 +16,13 @@ NON_EVENTS = LANGUAGES | EMOTIONS | {"withitn", "woitn"}
 
 
 class Transcriber(Protocol):
-    def transcribe(self, audio_path: Path) -> list[Segment]: ...
+    """Transcribes one already-bounded clip.
+
+    The duration is passed in because the clip is a region cut out of the video
+    and the caller is the only one that knows how long it was meant to be.
+    """
+
+    def transcribe(self, audio_path: Path, duration_s: float) -> list[Segment]: ...
 
 
 def parse_rich_text(raw_text: str) -> tuple[str, str, str | None, tuple[str, ...]]:
@@ -99,14 +105,20 @@ SENSEVOICE_LANGUAGES = {"zh", "en", "yue", "ja", "ko", "nospeech", "auto"}
 
 
 class SenseVoiceTranscriber:
+    """SenseVoiceSmall over a clip that has already been bounded by VAD.
+
+    No vad_model is attached to the funasr pipeline here. VAD is its own stage
+    now and has already decided where speech is, so letting SenseVoice run a
+    second detector over a thirty-second clip would only cost time and let it
+    disagree with the timeline the rest of the index is built on.
+    """
+
     def __init__(
         self,
         config: IndexerConfig,
-        duration_s: float,
         language: str | None = None,
     ) -> None:
         self.config = config
-        self.duration_s = duration_s
         self.language = language if language in SENSEVOICE_LANGUAGES else "auto"
         try:
             from funasr import AutoModel
@@ -118,23 +130,18 @@ class SenseVoiceTranscriber:
         self._model = AutoModel(
             model=config.model,
             hub=config.hub,
-            vad_model=config.vad_model,
-            vad_kwargs={"max_single_segment_time": config.max_segment_s * 1000},
             device=config.device,
             ncpu=config.cpu_threads,
             disable_update=True,
         )
 
-    def transcribe(self, audio_path: Path) -> list[Segment]:
+    def transcribe(self, audio_path: Path, duration_s: float) -> list[Segment]:
         result = self._model.generate(
             input=str(audio_path),
             cache={},
             language=self.language,
             use_itn=True,
             batch_size_s=self.config.batch_size_s,
-            merge_vad=self.config.merge_vad,
-            merge_length_s=self.config.merge_length_s,
-            sentence_timestamp=True,
             return_raw_text=True,
         )
-        return normalize_funasr_result(result, self.duration_s)
+        return normalize_funasr_result(result, duration_s)

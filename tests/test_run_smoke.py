@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.support import StubOCREngine, StubTagger, StubVAD
 from vuc.advanced_asr import ASRResult, TranscriptSentence
 from vuc.config import load_config
 from vuc.llm import ChatResult
@@ -15,8 +16,9 @@ from vuc.run import run_video
 
 
 class StubIndexer:
-    def transcribe(self, audio_path: Path) -> list[Segment]:
-        return [Segment(0, 4, "draft", "en", emotion="neutral", events=("Speech",))]
+    def transcribe(self, audio_path: Path, duration_s: float) -> list[Segment]:
+        del audio_path
+        return [Segment(0, duration_s, "draft", "en")]
 
 
 class StubAdvancedASR:
@@ -126,6 +128,9 @@ def test_run_explicit_mode_ignores_short_duration(
         video,
         config,
         index_transcriber=StubIndexer(),
+        index_vad=StubVAD([(0.0, 4.0)]),
+        index_event_tagger=StubTagger(),
+        index_ocr_engine=StubOCREngine(),
         advanced_provider=provider,
         llm_client=StubLLM(),
     )
@@ -162,6 +167,9 @@ def test_run_explicit_mode_ignores_short_duration(
             video,
             config,
             index_transcriber=StubIndexer(),
+            index_vad=StubVAD([(0.0, 4.0)]),
+            index_event_tagger=StubTagger(),
+            index_ocr_engine=StubOCREngine(),
             advanced_provider=provider,
             llm_client=StubLLM(),
         )

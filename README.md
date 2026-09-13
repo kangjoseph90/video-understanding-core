@@ -13,28 +13,199 @@ baseline_full
         └► 1s frames ─► 3×3 montages ─► one VLM request ─► report
 
 baseline_index_only
-  video ─► full SenseVoice ASR + FSMN-VAD
-        └► 15s frames ─► 3×3 montages ─► one VLM request ─► report
+  video ─► index ─► one VLM request ─► report
 
 agentic
-  video ─► full SenseVoice ASR + FSMN-VAD
-        └► 15s frames ─► 3×3 montages ─► VLM tool loop ─► report
-                                                    ├─ view_frames
-                                                    └─ transcribe_segment
+  video ─► index ─► VLM tool loop ─► report
+                              ├─ view_frames
+                              └─ transcribe_segment
 ```
 
-- `baseline_full`은 SenseVoice를 실행하지 않습니다. 전체 오디오를 advanced ASR로 전사하고,
-  1초 간격 프레임을 3×3으로 묶어 모든 몽타주를 한 번의 VLM 요청에 넣습니다.
-- `baseline_index_only`는 전체 SenseVoice 인덱스와 15초 간격 3×3 몽타주를 모두 한 번의
-  VLM 요청에 넣으며 도구를 제공하지 않습니다.
-- `agentic`은 `baseline_index_only`와 같은 초기 입력을 사용하고, 필요한 경우에만 프레임과
-  advanced ASR을 추가 조회할 수 있습니다. SenseVoice만으로 충분하면 도구 호출 없이
-  종료할 수 있습니다.
-- 일반 VLM 요청의 이미지 수를 애플리케이션에서 제한하거나 균등 다운샘플하지 않습니다.
+프롬프트를 구성하는 것은 네 가지이고, 데이터 모델과 캐시 파일도 같은 네 가지로
+나뉩니다. 서로를 덮어쓰거나 정정하지 않으며, 합치는 fusion 단계는 없습니다.
 
-SenseVoice의 인라인 태그는 정제된 `text`에서 제거되고 `language`, `emotion`, `events`에
-분리됩니다. 원문은 `raw_text`에 보존합니다. 세그먼트 `start`/`end`는 FSMN-VAD 경계이며,
-세그먼트 내부 단어 위치의 정밀 타임스탬프는 아닙니다.
+```text
+메타데이터     <video>.meta.json ─► 채널명, 제목, 길이, 챕터
+
+음성 인덱스     video ─► FSMN-VAD ─┬─ speech     ─► SenseVoice ─► [start-end] <lang> 전사
+                                  └─ non-speech ─► PANNs      ─► [start-end] <tag> <tag>
+               index.audio  ·  audio_index.txt
+
+텍스트 인덱스   video ─► 독립 1fps 스캔 ─► 변화 감지 + 4s 재확인
+                     ─► OCR ─► 줄 추적·검증 ─► 프레임 내 문단 ─► 문단 추적·중복 정리
+               index.text  ·  text_index.txt  ·  text_frames/observations.jsonl
+
+몽타주         컷 검출 ─► 30s 넘는 공백만 채움 ─► 안정된 프레임으로 정착
+                     ─► dedupe ─► 타임스탬프 굽기 ─► 3×3 montages
+               index.visual
+```
+
+두 인덱스는 단위도 줄 형식도 실패 양상도 다릅니다. 한 파일에 이어 붙이면 화면 텍스트가
+전사의 연장처럼 읽히므로, 저장도 렌더링도 프롬프트 블록도 각각 분리합니다.
+
+### 오디오: VAD가 먼저 타임라인을 나눈다
+
+VAD는 더 이상 SenseVoice 내부에 숨어 있지 않고 독립 단계로 먼저 실행됩니다. 그 결과가
+인덱스의 뼈대입니다. 모든 초는 speech 구간이거나 non-speech 구간이며, 겹침도 빈 곳도
+없습니다. speech 구간은 SenseVoice가 전사하고, non-speech 구간은 event tagger가 이름을
+붙입니다. 침묵은 정보의 부재가 아니라 관찰 결과입니다.
+
+구간 하나가 줄 하나입니다. 어느 모델이 그 줄을 만들었는지는 `index.json`에만 남고
+모델에게는 보이지 않습니다. 에이전트는 무엇이 들렸는지를 받지, 누가 들었는지를 받지
+않습니다.
+
+VAD 후처리는 네 가지만 합니다.
+
+- 검출 구간을 초 단위로 **바깥쪽으로** 반올림합니다. 시작은 내림, 끝은 올림이므로 구간은
+  넓어지기만 하고 음절이 잘려나가지 않습니다.
+- 짧은 침묵을 사이에 둔 이웃을 합칩니다. 다만 `merge_gap_s`를 넘지 않고, **원래 검출
+  길이** 중 짧은 쪽보다도 짧은 간격만 메웁니다. 0.5초짜리 검출 둘을 1.4초 간격으로
+  이으면 기침 두 번이 3초짜리 발화가 되기 때문입니다.
+- `min_region_s`(기본 2초)보다 짧게 남은 침묵은 구간이 되지 않고 옆의 speech에
+  흡수됩니다. 1초짜리 방 소음에 대해 tagger가 할 말은 없고, 그걸 한 줄로 내보내면
+  화자가 숨 쉴 때마다 빈 줄이 하나씩 생깁니다. 버리면 타임라인에 구멍이 나므로 버리지
+  않고 옆에 붙입니다. 실측(603초 요리 영상)으로 93줄 → 70줄입니다.
+- 어느 구간도 `window_max_s`를 넘지 않게 자릅니다.
+
+### 시각: 시계가 아니라 변화가 프레임을 고른다
+
+고정 15초 샘플링은 4분째 바뀌지 않은 슬라이드에 프레임을 쓰면서 3초짜리 자막 카드는
+놓쳤습니다. 이제 ffmpeg scene score로 컷을 먼저 찾고 그 직후를 샘플링합니다.
+`max_interval_s`(기본 30초)는 샘플링 시계가 아니라 **허용 최대 공백**입니다. 컷을 모두
+잡은 뒤 남은 공백 중 그보다 넓은 곳만 균등 분할해 채우므로, 컷이 촘촘한 영상은 채움이
+거의 필요 없고 정지된 talking head도 30초를 넘겨 비지 않습니다. 프레임 예산이 모자라면
+채움이 아니라 약한 컷부터 버리며, 그러고 나서 다시 공백을 채웁니다.
+
+컷 직후 0.25초는 아직 디졸브인 경우가 많아, 연속한 두 프레임이 같아 보일 때까지
+최대 `settle_max_s`만큼 앞으로 밀며 찾습니다. 페이드에 걸린 단색 프레임은 후보에서
+빼고, 끝까지 안정되지 않으면 첫 번째 쓸 만한 프레임을 씁니다 — 커버리지가 우선입니다.
+
+중복 제거는 직전에 남긴 프레임과 구분되지 않는 프레임을 버리되, 컷이거나 버렸을 때
+30초보다 넓은 공백이 생기는 프레임은 남깁니다.
+
+음성 인덱스의 segment는 VAD 분할 전체를 그대로 담습니다. 아무것도 이름 붙일 수 없었던
+구간까지 포함하는데, 이게 나중에 ASR 도구가 요청 구간을 speech/non-speech로 나누는
+근거이기 때문입니다. 다만 렌더링할 때는 빠집니다 — 전사도 태그도 없는 줄은 정보가 없고,
+앞뒤 줄의 타임스탬프가 이미 그 공백을 보여줍니다.
+
+### 태그: PANNs의 분류체계가 아니라 이름
+
+PANNs는 AudioSet의 527개 라벨로 말합니다. 그건 어휘가 아니라 온톨로지라서 추상 상위
+노드, 같은 소리의 여러 철자, 괄호 속 한정어가 섞여 있습니다. 그대로 내보내면
+`<chopping_(food)> <water_tap,_faucet>` 같은 줄이 나옵니다. 출력 전에 정리합니다.
+
+- 괄호와 첫 쉼표 뒤는 온톨로지가 자기를 설명하는 말이지 정보가 아닙니다.
+  `Chopping (food)` → `chopping`, `Chewing, mastication` → `chewing`.
+- 한 소리에 이름 하나. `Water tap, faucet`와 `Sink (filling or washing)`는 둘 다
+  `running_water`입니다.
+- **범주는 소리가 아닙니다.** `Animal`은 Dog와 Cat의 상위 노드입니다. 맞을 때조차
+  자기 자식들보다 말하는 게 적고 — 개와 고래와 귀뚜라미에 동시에 들어맞습니다 —
+  도마질 5초에 0.405로 떴습니다. 같은 구간에서 동물 계열 자식 라벨은 전부 0.14
+  아래였고 영상에 동물은 없었습니다. 상위 노드와 음향 장면 라벨(`Inside, small room`,
+  `Reverberation`)은 버립니다. 그 아래 잎 라벨(`Cat`, `Meow`)은 그대로 오므로,
+  점수가 난 것을 잃지는 않습니다.
+- 별칭이 없는 라벨은 버리지 않고 정리된 이름으로 내보냅니다. 어휘에 없다고 실제로 들린
+  소리가 사라지지는 않습니다.
+
+그리고 라벨은 tagger 자신의 최고 점수의 `relative_floor`(기본 0.4) 이상이어야 합니다.
+이건 모델 내부에 대한 설명이 아니라 측정에 근거한 heuristic입니다. BGM 6초 구간이
+`Music=0.834` 뒤에 `Animal=0.316`, `Snake=0.247`, `Squish=0.221`을 달고 나왔는데
+영상에 그런 건 없었고, 반대로 서로 맞장구치는 라벨들은 최고 점수 가까이 붙어 있어
+그대로 살아남습니다(한 입에 `Biting=0.549`, `Crunch=0.389`, `Chewing=0.254`).
+절대 기준만으로는 앞의 것을 거르면서 `Chopping=0.321`을 살릴 수 없습니다 — 둘의
+점수가 같은 자리에 있기 때문입니다.
+
+### 화면 텍스트: 관측 → 추적 → 출력
+
+화면 텍스트는 몽타주와 독립적으로 1fps로 스캔합니다. 448px 이미지는 변화 감지에만
+쓰고, OCR은 최대 폭 1280px인 원본 프레임을 읽습니다. 16×9 엣지 그리드가 비슷해도
+글자가 같다는 보장은 없으므로 4초마다 재확인합니다. 몽타주 시점과 컷 +0.75초에
+가장 가까운 스캔 프레임도 반드시 읽습니다. 타임스탬프를 굽기 전의 이미지입니다.
+
+검출은 `PP-OCRv6_tiny_det`, 인식은 다음 모델을 사용합니다.
+
+| 영상 언어 | 인식 모델 |
+|---|---|
+| `ko`, `ko-KR` | `korean_PP-OCRv5_mobile_rec` — 한글·영어·숫자 |
+| `en`, `zh`, `ja` 및 지역 태그 | `PP-OCRv6_small_rec` — 영어·중국어 간체/번체·일본어·라틴 문자 |
+| 언어 없음 / 매핑되지 않은 언어 | 같은 검출 crop에서 v6 small과 Korean v5 비교 |
+
+언어는 `<video>.meta.json`에서 읽습니다. 화면에 여러 언어가 섞이면 해당
+`rec_by_language` 매핑을 제거하여 기본 두 인식기를 사용할 수 있습니다. 오디오 전사로
+화면 글자를 정정하지 않습니다. `scripts/fetch_ocr_models.py`가 검출기, 두 인식기와
+각 모델에 맞는 전처리 설정·문자 사전을 받습니다.
+
+`use_angle_cls: false`가 기본입니다. RapidOCR 휠의 중국어 방향 분류기가 정상적인
+한국어 자막을 180도 뒤집는 경우를 확인했습니다. 이 상태에서는 해상도를 높여도
+오히려 인식이 나빠집니다. 회전된 입력임을 아는 경우에만 켤 수 있습니다.
+
+후처리는 언어·영상 이름·특정 문구에 의존하지 않습니다.
+
+- 실제 박스 겹침으로 일대일 추적합니다. 3×3 칸 경계를 넘거나 같은 문구가 이동해도
+  바로 새 구간이 되지 않습니다. 서로 다른 곳에 동시에 있는 같은 표기는 보존합니다.
+- 띄어쓰기·유니코드를 정규화하고, 한글은 자모 유사도도 비교합니다. 숫자 변화는
+  퍼지 병합하지 않습니다. 확실히 다른 문장은 분리하고, crop의 시각적 일치도도 씁니다.
+- 대표 표기는 **실제로 읽은 표기** 중 가장 높은 신뢰도를 우선합니다. 반복 횟수는
+  동점일 때만 쓰며, 반복해서 관측한 완전한 행을 짧게 잘린 판독으로 대체하지 않습니다.
+  한 번 나온 긴 오독이 반복된 정상 판독을 밀어내지는 못합니다. 사전 교정이나 문장 생성은 없습니다.
+- 먼저 각 줄의 시간적 정체성을 추적하고 크기·관측 근거를 판정합니다. 같은 프레임에서
+  인접하고 관측 시점도 충분히 겹치는 줄끼리만 문단을 만듭니다. 다른 수명의 이웃,
+  떨어진 문단, 별도 열은 분리합니다. 실제 프레임의 문단을 다시 추적하므로 서로 다른
+  시점의 줄을 모아 가상의 화면을 만들지 않습니다. 자막/슬라이드/간판 분류는 하지 않습니다.
+- 잠시 놓친 글자는 4초까지 재연결합니다. 가림으로 짧아진 판독이 계속되면 완전한 문장의
+  구간을 가림이 시작된 시점에서 끝냅니다. 겹치는 문단과 구성 줄은 같은 시간·공간에
+  중복 출력하지 않습니다. 3×3 위치와 크기 라벨은 출력용 부가 정보이며 병합 경계가 아닙니다.
+- 기본 신뢰도는 0.7입니다. 같은 문구·수평 위치·폭의 관측을 모아 **중앙 글자 높이가
+  화면의 2.5% 이하면 줄 전체를 제외**합니다. 720p에서 약 18px입니다. 높이는 기울어진
+  검출 사각형의 짧은 변으로 측정하여, 기울기나 여러 줄을 감싼 박스 때문에 커지지 않습니다.
+  블록을 만들기 전에 판정하므로 작은 줄과 큰 줄의 높이가 섞이지 않습니다. 정상 크기 행
+  바로 아래의 정렬된 줄바꿈은 같은 문단으로 보존합니다.
+- 같은 판독이 두 시점 이상에서 확인되어야 합니다. 한 번만 읽힌 글자는 신뢰도 0.95 이상이고,
+  앞뒤 4초 안의 다른 두 시점에서도 같은 자리·크기의 텍스트가 확인될 때만 남깁니다.
+  같은 문단에 반복 확인된 이웃 줄이 두 개 이상 있는 경우도 근거로 인정하여,
+  슬라이드나 재료 목록의 한 줄을 한 번 놓쳤다고 내용에 구멍을 내지 않습니다.
+  빠르게 바뀌는 자막도 이 근거를 사용할 수 있습니다. 언어별 짧은 글자 예외는 없으며,
+  고립된 한 프레임짜리 진짜 글자도 누락될 수 있습니다. 정갈함을 우선한 선택입니다.
+  제외된 결과까지 `text_frames/observations.jsonl`에 박스·글자 높이·신뢰도를 기록합니다.
+
+모델을 다시 실행하지 않고 후처리만 검증하려면 별도의 새 디렉터리에 재생합니다.
+입력 관측과 기존 인덱스를 수정하지 않으며 결과·입력 해시·처리 시간을 기록합니다.
+
+```bash
+python scripts/replay_ocr.py /path/to/text_frames/observations.jsonl \
+  --duration 716 --output-dir /tmp/ocr-replay
+```
+
+사람과 에이전트가 읽는 파일에는 시간·3×3 위치·대략적 크기를 영어로 표시합니다.
+크기는 대표 줄 높이 기준 `small`(<4%), `medium`(4~8%), `large`(≥8%)입니다. 정밀 박스는 관측 파일에
+남습니다. 두 번 이상 반복한 동일 문구는 **실제 구간을 모두 보존하여** 한 줄로 모읍니다.
+위치·크기가 다르면 각 구간 옆에 따로 표시합니다. 사이의 공백을 연속 노출로 바꾸지 않습니다. 작은 UI나 표의 세부 값이
+질문의 핵심이면 에이전트가 `view_frames`로 확인하도록 프롬프트에 명시합니다.
+
+```text
+[0-8, top center, medium] What are they used for?
+[12-17, bottom center, small] 東京にある日本語学校で日本語を教える仕事です
+[18-21; 38-41; 60-64, top left, small] Channel name
+```
+
+### 저하는 하되 실패하지 않는다
+
+event tagger가 없으면 SenseVoice의 태그로 물러서고, OCR 엔진이 없거나 읽기 중 실패하면 화면 텍스트만
+잃습니다. 어느 쪽도 인덱스 전체를 무너뜨리지 않으며 그 사실은 trace에 남습니다.
+
+OCR은 별도 프로세스에서 돌립니다. macOS에서 onnxruntime과 torch를 한 인터프리터에서
+내리면 종료 시점에 SIGABRT가 납니다. 인덱스는 이미 저장된 뒤였지만 `vuc index`의 종료
+코드는 134였습니다.
+
+### 이번 범위 밖
+
+YouTube 자막, visual chapter 추출, 음악 분석, 설명·카드 등 나머지 메타데이터, fusion 및
+canonicalization은 포함하지 않습니다. 메타데이터는 채널명·제목·길이·챕터만 씁니다.
+
+알려진 한계: 작은 간판·장식 글꼴의 오독은 높은 confidence에서도 남을 수 있습니다.
+1fps보다 짧게 나타났다 사라지는 글자는 놓칠 수 있고, 단독·작은 관측의 제외는 정밀도와
+재현율 사이의 선택입니다. 전체 영상의 정답 전사가 없으므로 cue 수를 정확도나 recall로
+해석하지 않습니다. 원본 관측은 이 기준을 바꿔 재처리할 수 있도록 보존합니다.
 
 ## Tools
 
@@ -45,10 +216,14 @@ transcribe_segment(start_s, end_s)
 view_frames(start_s, end_s, fps, n)
 ```
 
-- `transcribe_segment`의 한 번 호출 구간은 `tools.transcribe_segment.max_duration_s`와 provider
-  상한 중 작은 값까지이며 기본값은 60초입니다.
-  기본 provider는 로컬 faster-whisper `large-v3-turbo`, CPU `int8`입니다. cloud provider는
-  인터페이스만 있는 stub입니다.
+- `transcribe_segment`는 요청 구간을 인덱스와 **같은 VAD 분할**로 나눠서 처리합니다. speech
+  부분은 faster-whisper가 다시 전사하고, non-speech 부분은 event tagger가 태그를 답니다.
+  에이전트는 어느 쪽이 어느 모델에서 왔는지 알 필요 없이 인덱스와 동일한 `[start-end]`
+  형식의 더 정밀한 결과를 하나로 받습니다. 분할을 여기서 다시 계산하지 않고 인덱스의
+  것을 그대로 쓰므로, 에이전트가 인용하는 타임라인과 어긋날 일이 없습니다.
+- 한 번 호출 구간은 `tools.transcribe_segment.max_duration_s`와 provider 상한 중 작은
+  값까지이며 기본값은 60초입니다. 기본 provider는 로컬 faster-whisper `large-v3-turbo`,
+  CPU `int8`입니다. cloud provider는 인터페이스만 있는 stub입니다.
 - `view_frames`에서 에이전트가 시간 구간, fps, 정사각 몽타주의 한 변 `n`을 선택합니다.
   `fps`는 `0.1|0.2|0.5|1|2`, `n`은 `1|2|3|4` 중에서 선택합니다.
 - 모든 몽타주의 캔버스 크기와 JPEG 품질은 전역 `montage` 설정을 사용하며 기본 캔버스는
@@ -67,7 +242,7 @@ view_frames(start_s, end_s, fps, n)
 Python 3.11과 ffmpeg가 필요합니다.
 
 ```bash
-uv sync --extra dev --extra sensevoice --extra advanced-asr
+uv sync --extra dev --extra sensevoice --extra advanced-asr --extra ocr --extra audio-events
 uv run vuc index /path/to/video.mp4
 uv run vuc run /path/to/video.mp4 --query "핵심 주장을 요약해줘"
 ```
@@ -110,8 +285,12 @@ uv run ruff check .
 
 | item | default |
 |---|---:|
-| index / agentic frame sampling | 15s |
+| index frame sampling | cuts + 30s coverage grid |
 | baseline_full frame sampling | 1s |
+| VAD region limit | 30s |
+| VAD merge gap | 1.5s, capped by the shorter detection |
+| VAD minimum region | 2s |
+| event tagger | PANNs top-4, ≥0.2 and ≥0.4× its own top score |
 | montage reference canvas | 1344×756 |
 | initial montage grid | 3×3 |
 | tool grid choices | 1×1, 2×2, 3×3, 4×4 |
@@ -130,12 +309,39 @@ provider가 캐시 토큰을 별도로 보고하더라도 이 필드는 청구 �
 ASR 시간은 에이전트 wall-clock 예산과 분리합니다. 로컬 ASR은 `asr_processing_s`, cloud
 ASR은 처리한 오디오 초와 `cloud_asr_cost_usd`로 각각 기록합니다.
 
-캐시는 입력 파일 SHA-256을 키로 `.vuc-cache/<sha256>/` 아래에 저장됩니다. SenseVoice를 쓰는
-모드는 `audio.wav`, `index.json`, `index.txt`, 프레임, 몽타주를 공유합니다. 각 `vuc run`의
+캐시는 입력 파일 SHA-256을 키로 `.vuc-cache/<sha256>/` 아래에 저장됩니다. 인덱스를 쓰는
+모드는 `audio.wav`, `index.json`, `audio_index.txt`, `text_index.txt`, 프레임, 몽타주를
+공유합니다. 두 인덱스 파일은 비어 있더라도 항상 씁니다. `text_index.txt`가 비었다는 것은
+프레임을 읽었고 글자가 없었다는 뜻이고, 파일이 없다면 OCR이 아예 돌지 않은 것과
+구분되지 않습니다. 인덱스 출력을
+바꾸는 설정이 하나라도 달라지면 캐시를 재사용하지 않고 다시 만듭니다. 각 `vuc run`의
 보고서와 trace는 `runs/<run-id>/report.md`, `report.json`, `trace.jsonl`로 분리되어 이전 실행을
 덮어쓰거나 서로 섞지 않습니다.
 
 ## Measurements
+
+### Local model calibration
+
+2026-09-13에 arm64 Mac14,10(12코어, RAM 16GB)에서 `.vuc-cache`와 분리된 임시
+작업 공간으로 모델과 스레드 수를 다시 측정했습니다.
+
+- FLEURS 한·영·중·일 각 6개, 총 262.7초에서 SenseVoiceSmall은 CER 5.90%, 처리
+  36.1초였습니다. faster-whisper `large-v3-turbo`는 beam 1이 CER 4.06%/109.0초,
+  beam 5가 3.84%/115.4초였습니다. 전체 인덱스는 빠른 SenseVoice, 요청 구간은 더
+  정확한 Whisper beam 5로 처리하는 현재 구성을 유지합니다.
+- SenseVoiceSmall의 같은 43.9초 입력은 2/4/6/8/12 CPU thread에서 각각
+  2.54/3.18/4.75/6.13/8.30초였습니다. OCR과 병렬인 완전 인덱싱에서도 2 thread가
+  구간당 약 1.5초, 8 thread가 4~5초였고 두 실행의 audio/text index는 byte 단위로
+  같았습니다. 그래서 indexer 기본값은 2입니다.
+- FSMN-VAD는 1,027초 입력에서 1/2/4/8/12 thread가
+  5.70/3.67/2.72/2.44/2.63초였고 검출 결과가 같아 8 thread를 유지합니다.
+  Whisper도 8 thread가 가장 빨라 그대로 둡니다.
+- VAD가 고른 실제 non-speech 48창(257.1초)에서 PANNs Cnn14와 EfficientAT
+  `dymn10_as`를 비교했습니다. EfficientAT은 더 작은 최신 후보지만 CPU 처리 시간이
+  7.06초로 PANNs의 2.77초보다 길었고, 현재 필터 뒤 유효 태그도 43개 대 63개였습니다.
+  `sizzle`, `frying`, `train`처럼 영상에서 유용한 세부 라벨을 더 자주 놓쳐 PANNs와
+  기존 threshold를 유지합니다. 이 비교에는 완전한 event 정답 라벨이 없으므로 모델
+  자체의 일반 정확도 순위로 해석하지 않습니다.
 
 ### M1 long-video validation
 
@@ -289,3 +495,6 @@ deepseek는 `baseline_full` 1건(한국어 브이로그)이 실패해 n=4입니�
 - M2: 명시적 세 모드, 두 도구, tool-calling loop, JSONL trace, Markdown/JSON 보고서
 - M3: 동일 manifest에서 세 모드 비교 실행과 report judge
 - M4: 4개 이상 언어와 code-switching 평가 및 기본값 제안
+
+아래 "Benchmark results"의 수치는 고정 15초 샘플링과 SenseVoice 내부 VAD를 쓰던 이전
+인덱스에서 측정한 것으로, 현재 파이프라인의 것이 아닙니다.

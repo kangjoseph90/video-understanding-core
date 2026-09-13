@@ -7,19 +7,84 @@ run:
 video:
   allowed_extensions: [mp4, webm, mkv]
 
+vad:
+  provider: fsmn
+  hub: hf
+  model: fsmn-vad
+  device: cpu
+  cpu_threads: 8
+  max_single_segment_s: 30
+  merge_gap_s: 1.5
+  min_bridge_s: 1.0
+  min_region_s: 2.0
+  window_max_s: 30
+
+audio_events:
+  tagger: panns
+  top_k: 4
+  min_confidence: 0.2
+  relative_floor: 0.4
+  window_s: 10
+  model_path: ""
+
+visual_scan:
+  scan_fps: 2
+  scan_width: 320
+  scene_threshold: 0.3
+  min_interval_s: 2
+  max_interval_s: 30
+  boundary_offset_s: 0.25
+  settle_step_s: 0.25
+  settle_max_s: 1.5
+  phash_distance: 12
+  max_frames: 120
+  workers: 4
+
+ocr:
+  enabled: true
+  engine: rapidocr
+  scan_fps: 1
+  scan_width: 448
+  recognition_width: 1280
+  workers: 4
+  change_threshold: 0.06
+  refresh_s: 4
+  boundary_offset_s: 0.75
+  min_confidence: 0.7
+  singleton_confidence: 0.95
+  min_text_height: 0.025
+  max_hold_s: 30
+  same_text_ratio: 0.8
+  rejoin_gap_s: 4
+  use_angle_cls: false
+  det_model_path: models/ocr/PP-OCRv6_tiny_det.onnx
+  det_model_config_path: models/ocr/PP-OCRv6_tiny_det.yml
+  rec_model_path: models/ocr/PP-OCRv6_small_rec.onnx
+  rec_keys_path: models/ocr/PP-OCRv6_small_dict.txt
+  fallback_rec_model_path: models/ocr/korean_PP-OCRv5_rec.onnx
+  fallback_rec_keys_path: models/ocr/korean_PP-OCRv5_dict.txt
+  rec_by_language:
+    ko:
+      model: models/ocr/korean_PP-OCRv5_rec.onnx
+      keys: models/ocr/korean_PP-OCRv5_dict.txt
+    en:
+      model: models/ocr/PP-OCRv6_small_rec.onnx
+      keys: models/ocr/PP-OCRv6_small_dict.txt
+    zh:
+      model: models/ocr/PP-OCRv6_small_rec.onnx
+      keys: models/ocr/PP-OCRv6_small_dict.txt
+    ja:
+      model: models/ocr/PP-OCRv6_small_rec.onnx
+      keys: models/ocr/PP-OCRv6_small_dict.txt
+
 indexer:
   hub: hf
   model: FunAudioLLM/SenseVoiceSmall
-  vad_model: fsmn-vad
   device: cpu
-  cpu_threads: 8
+  cpu_threads: 2
   batch_size_s: 60
-  max_segment_s: 30
-  merge_vad: true
-  merge_length_s: 15
 
 frames:
-  index_interval_s: 15
   index_montage_n: 3
   baseline_full_interval_s: 1
   baseline_full_montage_n: 3

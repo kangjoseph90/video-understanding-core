@@ -6,7 +6,6 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from vuc.config import FramesConfig, MontageConfig
 from vuc.media import MediaError, require_binary
 from vuc.models import FrameArtifact
 
@@ -38,7 +37,8 @@ def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
-def _burn_in(image_path: Path, timestamp_s: float, quality: int) -> None:
+def burn_in_timestamp(image_path: Path, timestamp_s: float, quality: int) -> None:
+    """Stamp the second count onto the frame: it is how the model cites time."""
     with Image.open(image_path) as source:
         image = source.convert("RGB")
     draw = ImageDraw.Draw(image)
@@ -65,28 +65,40 @@ def _burn_in(image_path: Path, timestamp_s: float, quality: int) -> None:
     image.save(image_path, "JPEG", quality=quality, optimize=True)
 
 
-def extract_initial_frames(
+def extract_plain_frames(
     video_path: Path,
     output_dir: Path,
     *,
+    prefix: str,
+    fps: float,
+    width: int,
     duration_s: float,
-    frames_config: FramesConfig,
-    montage_config: MontageConfig,
-) -> list[FrameArtifact]:
-    cell_width, _ = montage_cell_size(
-        montage_config.width,
-        montage_config.height,
-        frames_config.index_montage_n,
-    )
-    return extract_sampled_frames(
-        video_path,
-        output_dir,
-        start_s=0,
-        end_s=duration_s,
-        fps=1 / frames_config.index_interval_s,
-        resolution=cell_width,
-        jpeg_quality=montage_config.jpeg_quality,
-    )
+) -> list[tuple[float, Path]]:
+    """A flat sampling of the video, unmarked, for something else to read.
+
+    No timestamp is burned on: these frames are input to OCR, and stamping them
+    first put our own second counter into the text index as on-screen text.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    command = [
+        require_binary("ffmpeg"),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        str(video_path),
+        "-vf",
+        f"fps={fps},scale=w='min(iw,{width})':h=-2",
+        "-q:v",
+        "3",
+        str(output_dir / f"{prefix}-%06d.jpg"),
+    ]
+    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise MediaError(f"frame extraction failed: {completed.stderr.strip()}")
+    paths = sorted(output_dir.glob(f"{prefix}-*.jpg"))
+    return [(min(round(index / fps, 3), duration_s), path) for index, path in enumerate(paths)]
 
 
 def montage_cell_size(width: int, height: int, n: int) -> tuple[int, int]:
@@ -139,7 +151,7 @@ def extract_sampled_frames(
     artifacts: list[FrameArtifact] = []
     for index, path in enumerate(paths):
         timestamp_s = min(start_s + index / fps, end_s)
-        _burn_in(path, timestamp_s, jpeg_quality)
+        burn_in_timestamp(path, timestamp_s, jpeg_quality)
         artifacts.append(FrameArtifact(path=str(path), timestamp_s=timestamp_s))
     return artifacts
 
