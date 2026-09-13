@@ -39,6 +39,7 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.view_frames.grid_options == (1, 2, 3, 4)
     assert config.transcribe_segment.max_duration_s == 60
     assert config.vision_llm.input_cost_env == "VLM_INPUT_COST_PER_MTOK"
+    assert config.vision_llm.temperature is None
 
 
 def test_load_config_rejects_automatic_or_unknown_run_mode(tmp_path: Path) -> None:
@@ -147,3 +148,27 @@ def test_load_config_rejects_sampling_intervals_that_cannot_hold(tmp_path: Path)
 def test_load_config_rejects_a_zero_length_vad_window(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="vad window lengths"):
         load_config(_with(tmp_path, "window_max_s: 30", "window_max_s: 0"))
+
+
+def test_load_config_custom_and_zero_temperature(tmp_path: Path) -> None:
+    cfg_07 = load_config(_with(tmp_path, "temperature: null", "temperature: 0.7"))
+    assert cfg_07.vision_llm.temperature == 0.7
+
+    cfg_00 = load_config(_with(tmp_path, "temperature: null", "temperature: 0.0"))
+    assert cfg_00.vision_llm.temperature == 0.0
+
+
+def test_load_config_null_and_omitted_temperature(tmp_path: Path) -> None:
+    cfg_null = load_config(_with(tmp_path, "temperature: null", "temperature: null"))
+    assert cfg_null.vision_llm.temperature is None
+
+    cfg_omitted = load_config(_with(tmp_path, "  temperature: null\n", ""))
+    assert cfg_omitted.vision_llm.temperature is None
+
+
+def test_load_config_rejects_out_of_range_temperature(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="vision_llm temperature must be between 0.0 and 2.0"):
+        load_config(_with(tmp_path, "temperature: null", "temperature: -0.1"))
+
+    with pytest.raises(ValueError, match="vision_llm temperature must be between 0.0 and 2.0"):
+        load_config(_with(tmp_path, "temperature: null", "temperature: 2.1"))

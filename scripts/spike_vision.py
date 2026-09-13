@@ -60,9 +60,17 @@ def positional_accuracy(actual: list[str], expected: list[str]) -> dict[str, Any
 
 
 class VisionClient:
-    def __init__(self, base_url: str, model: str, api_key: str, timeout_s: float) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        model: str,
+        api_key: str,
+        timeout_s: float,
+        temperature: float | None = None,
+    ) -> None:
         self.url = f"{base_url.rstrip('/')}/chat/completions"
         self.model = model
+        self.temperature = temperature
         self.client = httpx.Client(
             timeout=timeout_s,
             headers={"Authorization": f"Bearer {api_key}"},
@@ -83,9 +91,10 @@ class VisionClient:
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": [{"role": "user", "content": content}],
-            "temperature": 0,
             "max_tokens": 512,
         }
+        if self.temperature is not None:
+            payload["temperature"] = self.temperature
         if tools is not None:
             payload["tools"] = tools
         if tool_choice is not None:
@@ -127,6 +136,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         values["VLM_MODEL"],
         values["VLM_API_KEY"],
         args.timeout,
+        temperature=args.temperature,
     )
     results: dict[str, Any] = {
         "model": values["VLM_MODEL"],
@@ -217,6 +227,7 @@ def parse_args() -> argparse.Namespace:
         default=Path(".vuc-cache/measurements/vision-spike.json"),
     )
     parser.add_argument("--timeout", type=float, default=180)
+    parser.add_argument("--temperature", type=float, default=None)
     return parser.parse_args()
 
 

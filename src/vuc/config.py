@@ -173,6 +173,7 @@ class VisionLLMConfig:
     input_cost_per_million_usd: float
     cached_input_cost_per_million_usd: float
     output_cost_per_million_usd: float
+    temperature: float | None = None
 
 
 @dataclass(frozen=True)
@@ -402,6 +403,11 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             input_cost_per_million_usd=_rate(vision_llm["input_cost_env"]),
             cached_input_cost_per_million_usd=_rate(vision_llm["cached_input_cost_env"]),
             output_cost_per_million_usd=_rate(vision_llm["output_cost_env"]),
+            temperature=(
+                float(vision_llm["temperature"])
+                if vision_llm.get("temperature") is not None
+                else None
+            ),
         ),
         advanced_asr=AdvancedASRConfig(
             provider=str(advanced_asr["provider"]),
@@ -492,4 +498,8 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         or result.vision_llm.output_cost_per_million_usd < 0
     ):
         raise ValueError("vision_llm token costs must not be negative")
+    if result.vision_llm.temperature is not None and not (
+        0.0 <= result.vision_llm.temperature <= 2.0
+    ):
+        raise ValueError("vision_llm temperature must be between 0.0 and 2.0")
     return result

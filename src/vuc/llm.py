@@ -80,6 +80,9 @@ def image_content(path: Path) -> dict[str, Any]:
     }
 
 
+_UNSET = object()
+
+
 class ChatCompletionsClient:
     def __init__(self, config: VisionLLMConfig) -> None:
         base_url = os.environ.get(config.base_url_env, "").strip()
@@ -101,6 +104,7 @@ class ChatCompletionsClient:
         self.model = model
         self.max_retries = config.max_retries
         self.max_output_tokens = config.max_output_tokens
+        self.temperature = config.temperature
         self._client = httpx.Client(
             timeout=config.timeout_s,
             headers={"Authorization": f"Bearer {api_key}"},
@@ -113,13 +117,18 @@ class ChatCompletionsClient:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         max_tokens: int | None = None,
+        temperature: float | None | object = _UNSET,
     ) -> ChatResult:
+        effective_temperature = (
+            self.temperature if temperature is _UNSET else temperature
+        )
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0,
             "max_tokens": max_tokens or self.max_output_tokens,
         }
+        if effective_temperature is not None:
+            payload["temperature"] = effective_temperature
         if tools:
             payload["tools"] = tools
         if tool_choice is not None:

@@ -106,6 +106,7 @@ vision_llm:
   timeout_s: 180
   max_retries: 2
   max_output_tokens: 32768
+  temperature: null
 
 asr:
   advanced:
