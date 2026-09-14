@@ -171,6 +171,10 @@ class VideoIndex:
     created_at: str
     indexer: dict[str, Any] = field(default_factory=dict)
     index_config: dict[str, Any] = field(default_factory=dict)
+    # What a channel-provided caption track was judged to be and what it
+    # changed. Diagnostic only: it is written here and never rendered, because
+    # the agent is told what was heard, not who heard it.
+    captions: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -182,6 +186,7 @@ class VideoIndex:
             "created_at": self.created_at,
             "indexer": self.indexer,
             "index_config": self.index_config,
+            "captions": self.captions,
         }
 
     @classmethod
@@ -195,4 +200,5 @@ class VideoIndex:
             created_at=data["created_at"],
             indexer=data.get("indexer", {}),
             index_config=data.get("index_config", {}),
+            captions=data.get("captions", {}),
         )

@@ -1,0 +1,6106 @@
+{
+  "video_id": "4m6wzOlQ6fg",
+  "fetched_at": "2026-09-14T03:43:33.569304+00:00",
+  "audio_language": "en",
+  "track": {
+    "language": "en",
+    "kind": "auto",
+    "format": "json3",
+    "content_sha256": "39f69b078571c69025be55aba4df78cded142d1093457e16b6db1d2be8b8f6a9",
+    "has_word_timing": true,
+    "cues": [
+      {
+        "start_s": 3.919,
+        "text": "hello"
+      },
+      {
+        "start_s": 4.319,
+        "text": "everyone"
+      },
+      {
+        "start_s": 5.2,
+        "text": "today"
+      },
+      {
+        "start_s": 5.6,
+        "text": "we'll"
+      },
+      {
+        "start_s": 6.0,
+        "text": "talk"
+      },
+      {
+        "start_s": 6.319,
+        "text": "about"
+      },
+      {
+        "start_s": 6.72,
+        "text": "creative"
+      },
+      {
+        "start_s": 7.279,
+        "text": "commons"
+      },
+      {
+        "start_s": 8.0,
+        "text": "licenses"
+      },
+      {
+        "start_s": 9.44,
+        "text": "and"
+      },
+      {
+        "start_s": 10.16,
+        "text": "we"
+      },
+      {
+        "start_s": 10.4,
+        "text": "will"
+      },
+      {
+        "start_s": 10.559,
+        "text": "try"
+      },
+      {
+        "start_s": 10.96,
+        "text": "to"
+      },
+      {
+        "start_s": 11.2,
+        "text": "understand"
+      },
+      {
+        "start_s": 11.759,
+        "text": "the"
+      },
+      {
+        "start_s": 12.0,
+        "text": "meaning"
+      },
+      {
+        "start_s": 12.4,
+        "text": "and"
+      },
+      {
+        "start_s": 12.559,
+        "text": "use"
+      },
+      {
+        "start_s": 12.88,
+        "text": "of"
+      },
+      {
+        "start_s": 13.04,
+        "text": "creative"
+      },
+      {
+        "start_s": 13.519,
+        "text": "commons"
+      },
+      {
+        "start_s": 14.08,
+        "text": "licenses"
+      },
+      {
+        "start_s": 14.96,
+        "text": "and"
+      },
+      {
+        "start_s": 15.28,
+        "text": "see"
+      },
+      {
+        "start_s": 15.679,
+        "text": "how"
+      },
+      {
+        "start_s": 15.839,
+        "text": "to"
+      },
+      {
+        "start_s": 16.08,
+        "text": "include"
+      },
+      {
+        "start_s": 16.48,
+        "text": "them"
+      },
+      {
+        "start_s": 16.96,
+        "text": "in"
+      },
+      {
+        "start_s": 17.119,
+        "text": "your"
+      },
+      {
+        "start_s": 17.52,
+        "text": "academic"
+      },
+      {
+        "start_s": 18.32,
+        "text": "activities"
+      },
+      {
+        "start_s": 20.24,
+        "text": "first"
+      },
+      {
+        "start_s": 20.56,
+        "text": "of"
+      },
+      {
+        "start_s": 20.64,
+        "text": "all"
+      },
+      {
+        "start_s": 21.039,
+        "text": "what"
+      },
+      {
+        "start_s": 21.359,
+        "text": "are"
+      },
+      {
+        "start_s": 21.68,
+        "text": "creative"
+      },
+      {
+        "start_s": 22.16,
+        "text": "commons"
+      },
+      {
+        "start_s": 22.64,
+        "text": "licenses"
+      },
+      {
+        "start_s": 23.439,
+        "text": "and"
+      },
+      {
+        "start_s": 23.6,
+        "text": "what"
+      },
+      {
+        "start_s": 24.0,
+        "text": "have"
+      },
+      {
+        "start_s": 24.08,
+        "text": "they"
+      },
+      {
+        "start_s": 24.32,
+        "text": "been"
+      },
+      {
+        "start_s": 24.56,
+        "text": "created"
+      },
+      {
+        "start_s": 25.039,
+        "text": "for"
+      },
+      {
+        "start_s": 26.16,
+        "text": "creative"
+      },
+      {
+        "start_s": 26.64,
+        "text": "commons"
+      },
+      {
+        "start_s": 27.119,
+        "text": "is"
+      },
+      {
+        "start_s": 27.279,
+        "text": "a"
+      },
+      {
+        "start_s": 27.359,
+        "text": "global"
+      },
+      {
+        "start_s": 27.92,
+        "text": "non-for-profit"
+      },
+      {
+        "start_s": 28.88,
+        "text": "organization"
+      },
+      {
+        "start_s": 29.76,
+        "text": "that"
+      },
+      {
+        "start_s": 30.08,
+        "text": "enables"
+      },
+      {
+        "start_s": 30.8,
+        "text": "sharing"
+      },
+      {
+        "start_s": 31.359,
+        "text": "and"
+      },
+      {
+        "start_s": 31.519,
+        "text": "reuse"
+      },
+      {
+        "start_s": 32.16,
+        "text": "of"
+      },
+      {
+        "start_s": 32.32,
+        "text": "creative"
+      },
+      {
+        "start_s": 32.96,
+        "text": "and"
+      },
+      {
+        "start_s": 33.12,
+        "text": "scientific"
+      },
+      {
+        "start_s": 33.84,
+        "text": "works"
+      },
+      {
+        "start_s": 34.719,
+        "text": "through"
+      },
+      {
+        "start_s": 34.88,
+        "text": "the"
+      },
+      {
+        "start_s": 35.04,
+        "text": "provision"
+      },
+      {
+        "start_s": 35.52,
+        "text": "of"
+      },
+      {
+        "start_s": 35.6,
+        "text": "3dl"
+      },
+      {
+        "start_s": 36.16,
+        "text": "tools"
+      },
+      {
+        "start_s": 36.559,
+        "text": "the"
+      },
+      {
+        "start_s": 36.96,
+        "text": "licenses"
+      },
+      {
+        "start_s": 39.52,
+        "text": "back"
+      },
+      {
+        "start_s": 39.68,
+        "text": "to"
+      },
+      {
+        "start_s": 39.84,
+        "text": "presentation"
+      },
+      {
+        "start_s": 42.48,
+        "text": "cc"
+      },
+      {
+        "start_s": 42.8,
+        "text": "licenses"
+      },
+      {
+        "start_s": 43.6,
+        "text": "allow"
+      },
+      {
+        "start_s": 44.079,
+        "text": "authors"
+      },
+      {
+        "start_s": 44.559,
+        "text": "to"
+      },
+      {
+        "start_s": 44.719,
+        "text": "define"
+      },
+      {
+        "start_s": 45.36,
+        "text": "what"
+      },
+      {
+        "start_s": 45.6,
+        "text": "types"
+      },
+      {
+        "start_s": 46.0,
+        "text": "of"
+      },
+      {
+        "start_s": 46.239,
+        "text": "reuse"
+      },
+      {
+        "start_s": 46.8,
+        "text": "are"
+      },
+      {
+        "start_s": 46.96,
+        "text": "permitted"
+      },
+      {
+        "start_s": 47.52,
+        "text": "for"
+      },
+      {
+        "start_s": 47.68,
+        "text": "their"
+      },
+      {
+        "start_s": 47.92,
+        "text": "works"
+      },
+      {
+        "start_s": 48.399,
+        "text": "without"
+      },
+      {
+        "start_s": 48.8,
+        "text": "their"
+      },
+      {
+        "start_s": 49.039,
+        "text": "formal"
+      },
+      {
+        "start_s": 49.6,
+        "text": "permission"
+      },
+      {
+        "start_s": 50.96,
+        "text": "an"
+      },
+      {
+        "start_s": 51.12,
+        "text": "important"
+      },
+      {
+        "start_s": 51.68,
+        "text": "point"
+      },
+      {
+        "start_s": 52.0,
+        "text": "to"
+      },
+      {
+        "start_s": 52.239,
+        "text": "keep"
+      },
+      {
+        "start_s": 52.559,
+        "text": "in"
+      },
+      {
+        "start_s": 52.719,
+        "text": "mind"
+      },
+      {
+        "start_s": 53.199,
+        "text": "is"
+      },
+      {
+        "start_s": 53.44,
+        "text": "that"
+      },
+      {
+        "start_s": 53.76,
+        "text": "reusing"
+      },
+      {
+        "start_s": 54.32,
+        "text": "is"
+      },
+      {
+        "start_s": 54.48,
+        "text": "different"
+      },
+      {
+        "start_s": 54.879,
+        "text": "from"
+      },
+      {
+        "start_s": 55.199,
+        "text": "citing"
+      },
+      {
+        "start_s": 55.84,
+        "text": "which"
+      },
+      {
+        "start_s": 56.079,
+        "text": "is"
+      },
+      {
+        "start_s": 56.239,
+        "text": "a"
+      },
+      {
+        "start_s": 56.399,
+        "text": "right"
+      },
+      {
+        "start_s": 56.8,
+        "text": "for"
+      },
+      {
+        "start_s": 57.12,
+        "text": "everyone"
+      },
+      {
+        "start_s": 58.079,
+        "text": "to"
+      },
+      {
+        "start_s": 58.239,
+        "text": "reuse"
+      },
+      {
+        "start_s": 58.719,
+        "text": "copyrighted"
+      },
+      {
+        "start_s": 59.52,
+        "text": "content"
+      },
+      {
+        "start_s": 60.079,
+        "text": "without"
+      },
+      {
+        "start_s": 60.48,
+        "text": "cc"
+      },
+      {
+        "start_s": 60.8,
+        "text": "license"
+      },
+      {
+        "start_s": 61.359,
+        "text": "it"
+      },
+      {
+        "start_s": 61.52,
+        "text": "requires"
+      },
+      {
+        "start_s": 62.239,
+        "text": "copyright"
+      },
+      {
+        "start_s": 62.879,
+        "text": "owners"
+      },
+      {
+        "start_s": 63.28,
+        "text": "authorization"
+      },
+      {
+        "start_s": 64.96,
+        "text": "but"
+      },
+      {
+        "start_s": 65.68,
+        "text": "if"
+      },
+      {
+        "start_s": 65.84,
+        "text": "a"
+      },
+      {
+        "start_s": 65.92,
+        "text": "cc"
+      },
+      {
+        "start_s": 66.24,
+        "text": "license"
+      },
+      {
+        "start_s": 66.64,
+        "text": "has"
+      },
+      {
+        "start_s": 66.799,
+        "text": "been"
+      },
+      {
+        "start_s": 66.96,
+        "text": "applied"
+      },
+      {
+        "start_s": 67.36,
+        "text": "to"
+      },
+      {
+        "start_s": 67.52,
+        "text": "the"
+      },
+      {
+        "start_s": 67.68,
+        "text": "content"
+      },
+      {
+        "start_s": 68.32,
+        "text": "this"
+      },
+      {
+        "start_s": 68.479,
+        "text": "authorization"
+      },
+      {
+        "start_s": 69.52,
+        "text": "may"
+      },
+      {
+        "start_s": 69.92,
+        "text": "already"
+      },
+      {
+        "start_s": 70.4,
+        "text": "be"
+      },
+      {
+        "start_s": 70.56,
+        "text": "given"
+      },
+      {
+        "start_s": 70.96,
+        "text": "to"
+      },
+      {
+        "start_s": 71.119,
+        "text": "you"
+      },
+      {
+        "start_s": 71.36,
+        "text": "by"
+      },
+      {
+        "start_s": 71.6,
+        "text": "the"
+      },
+      {
+        "start_s": 71.76,
+        "text": "copyright"
+      },
+      {
+        "start_s": 72.4,
+        "text": "owner"
+      },
+      {
+        "start_s": 73.92,
+        "text": "creative"
+      },
+      {
+        "start_s": 74.479,
+        "text": "commands"
+      },
+      {
+        "start_s": 75.04,
+        "text": "licenses"
+      },
+      {
+        "start_s": 75.759,
+        "text": "can"
+      },
+      {
+        "start_s": 76.0,
+        "text": "only"
+      },
+      {
+        "start_s": 76.32,
+        "text": "be"
+      },
+      {
+        "start_s": 76.479,
+        "text": "granted"
+      },
+      {
+        "start_s": 77.04,
+        "text": "by"
+      },
+      {
+        "start_s": 77.28,
+        "text": "copyright"
+      },
+      {
+        "start_s": 77.92,
+        "text": "holders"
+      },
+      {
+        "start_s": 78.64,
+        "text": "authors"
+      },
+      {
+        "start_s": 79.28,
+        "text": "or"
+      },
+      {
+        "start_s": 79.439,
+        "text": "publishers"
+      },
+      {
+        "start_s": 80.72,
+        "text": "and"
+      },
+      {
+        "start_s": 80.88,
+        "text": "when"
+      },
+      {
+        "start_s": 81.119,
+        "text": "a"
+      },
+      {
+        "start_s": 81.28,
+        "text": "creative"
+      },
+      {
+        "start_s": 81.759,
+        "text": "commons"
+      },
+      {
+        "start_s": 82.32,
+        "text": "license"
+      },
+      {
+        "start_s": 84.479,
+        "text": "is"
+      },
+      {
+        "start_s": 84.72,
+        "text": "applied"
+      },
+      {
+        "start_s": 85.28,
+        "text": "the"
+      },
+      {
+        "start_s": 85.439,
+        "text": "author"
+      },
+      {
+        "start_s": 85.84,
+        "text": "remains"
+      },
+      {
+        "start_s": 86.32,
+        "text": "the"
+      },
+      {
+        "start_s": 86.479,
+        "text": "copyright"
+      },
+      {
+        "start_s": 87.119,
+        "text": "owner"
+      },
+      {
+        "start_s": 87.6,
+        "text": "of"
+      },
+      {
+        "start_s": 87.759,
+        "text": "course"
+      },
+      {
+        "start_s": 88.08,
+        "text": "he"
+      },
+      {
+        "start_s": 88.24,
+        "text": "must"
+      },
+      {
+        "start_s": 88.4,
+        "text": "be"
+      },
+      {
+        "start_s": 88.56,
+        "text": "credited"
+      },
+      {
+        "start_s": 89.439,
+        "text": "and"
+      },
+      {
+        "start_s": 89.92,
+        "text": "depending"
+      },
+      {
+        "start_s": 90.4,
+        "text": "on"
+      },
+      {
+        "start_s": 90.56,
+        "text": "the"
+      },
+      {
+        "start_s": 90.72,
+        "text": "license"
+      },
+      {
+        "start_s": 91.36,
+        "text": "give"
+      },
+      {
+        "start_s": 91.6,
+        "text": "his"
+      },
+      {
+        "start_s": 91.759,
+        "text": "permission"
+      },
+      {
+        "start_s": 92.72,
+        "text": "for"
+      },
+      {
+        "start_s": 92.96,
+        "text": "some"
+      },
+      {
+        "start_s": 93.28,
+        "text": "specific"
+      },
+      {
+        "start_s": 94.0,
+        "text": "reuse"
+      },
+      {
+        "start_s": 94.479,
+        "text": "cases"
+      },
+      {
+        "start_s": 99.04,
+        "text": "what"
+      },
+      {
+        "start_s": 99.52,
+        "text": "are"
+      },
+      {
+        "start_s": 101.119,
+        "text": "creative"
+      },
+      {
+        "start_s": 101.6,
+        "text": "commons"
+      },
+      {
+        "start_s": 102.079,
+        "text": "licenses"
+      },
+      {
+        "start_s": 102.72,
+        "text": "used"
+      },
+      {
+        "start_s": 103.04,
+        "text": "for"
+      },
+      {
+        "start_s": 105.04,
+        "text": "creative"
+      },
+      {
+        "start_s": 105.52,
+        "text": "commands"
+      },
+      {
+        "start_s": 106.0,
+        "text": "licenses"
+      },
+      {
+        "start_s": 106.88,
+        "text": "are"
+      },
+      {
+        "start_s": 107.04,
+        "text": "mainly"
+      },
+      {
+        "start_s": 107.439,
+        "text": "used"
+      },
+      {
+        "start_s": 107.759,
+        "text": "for"
+      },
+      {
+        "start_s": 108.079,
+        "text": "open"
+      },
+      {
+        "start_s": 108.399,
+        "text": "access"
+      },
+      {
+        "start_s": 108.72,
+        "text": "publications"
+      },
+      {
+        "start_s": 110.479,
+        "text": "at"
+      },
+      {
+        "start_s": 110.64,
+        "text": "the"
+      },
+      {
+        "start_s": 110.799,
+        "text": "end"
+      },
+      {
+        "start_s": 110.96,
+        "text": "of"
+      },
+      {
+        "start_s": 111.04,
+        "text": "the"
+      },
+      {
+        "start_s": 111.2,
+        "text": "publication"
+      },
+      {
+        "start_s": 112.079,
+        "text": "process"
+      },
+      {
+        "start_s": 112.56,
+        "text": "in"
+      },
+      {
+        "start_s": 112.72,
+        "text": "an"
+      },
+      {
+        "start_s": 112.88,
+        "text": "open"
+      },
+      {
+        "start_s": 113.2,
+        "text": "access"
+      },
+      {
+        "start_s": 113.6,
+        "text": "journal"
+      },
+      {
+        "start_s": 114.64,
+        "text": "you"
+      },
+      {
+        "start_s": 114.799,
+        "text": "will"
+      },
+      {
+        "start_s": 114.96,
+        "text": "be"
+      },
+      {
+        "start_s": 115.2,
+        "text": "asked"
+      },
+      {
+        "start_s": 115.439,
+        "text": "by"
+      },
+      {
+        "start_s": 115.6,
+        "text": "your"
+      },
+      {
+        "start_s": 115.759,
+        "text": "publisher"
+      },
+      {
+        "start_s": 116.32,
+        "text": "to"
+      },
+      {
+        "start_s": 116.56,
+        "text": "sign"
+      },
+      {
+        "start_s": 116.96,
+        "text": "an"
+      },
+      {
+        "start_s": 117.119,
+        "text": "agreement"
+      },
+      {
+        "start_s": 117.759,
+        "text": "and"
+      },
+      {
+        "start_s": 117.92,
+        "text": "apply"
+      },
+      {
+        "start_s": 118.32,
+        "text": "a"
+      },
+      {
+        "start_s": 118.479,
+        "text": "license"
+      },
+      {
+        "start_s": 120.24,
+        "text": "you"
+      },
+      {
+        "start_s": 120.399,
+        "text": "will"
+      },
+      {
+        "start_s": 120.64,
+        "text": "often"
+      },
+      {
+        "start_s": 120.88,
+        "text": "have"
+      },
+      {
+        "start_s": 121.04,
+        "text": "to"
+      },
+      {
+        "start_s": 121.2,
+        "text": "choose"
+      },
+      {
+        "start_s": 121.52,
+        "text": "between"
+      },
+      {
+        "start_s": 121.92,
+        "text": "two"
+      },
+      {
+        "start_s": 122.159,
+        "text": "or"
+      },
+      {
+        "start_s": 122.399,
+        "text": "three"
+      },
+      {
+        "start_s": 123.28,
+        "text": "licenses"
+      },
+      {
+        "start_s": 124.96,
+        "text": "more"
+      },
+      {
+        "start_s": 125.28,
+        "text": "or"
+      },
+      {
+        "start_s": 125.439,
+        "text": "less"
+      },
+      {
+        "start_s": 125.84,
+        "text": "restrictive"
+      },
+      {
+        "start_s": 126.88,
+        "text": "and"
+      },
+      {
+        "start_s": 127.04,
+        "text": "the"
+      },
+      {
+        "start_s": 127.2,
+        "text": "open"
+      },
+      {
+        "start_s": 127.52,
+        "text": "access"
+      },
+      {
+        "start_s": 128.0,
+        "text": "fees"
+      },
+      {
+        "start_s": 128.319,
+        "text": "can"
+      },
+      {
+        "start_s": 128.56,
+        "text": "sometimes"
+      },
+      {
+        "start_s": 129.36,
+        "text": "vary"
+      },
+      {
+        "start_s": 129.759,
+        "text": "depending"
+      },
+      {
+        "start_s": 130.319,
+        "text": "on"
+      },
+      {
+        "start_s": 130.479,
+        "text": "the"
+      },
+      {
+        "start_s": 130.64,
+        "text": "license"
+      },
+      {
+        "start_s": 131.039,
+        "text": "you"
+      },
+      {
+        "start_s": 131.2,
+        "text": "choose"
+      },
+      {
+        "start_s": 132.8,
+        "text": "creative"
+      },
+      {
+        "start_s": 133.28,
+        "text": "commons"
+      },
+      {
+        "start_s": 133.76,
+        "text": "licenses"
+      },
+      {
+        "start_s": 134.64,
+        "text": "are"
+      },
+      {
+        "start_s": 134.8,
+        "text": "used"
+      },
+      {
+        "start_s": 135.2,
+        "text": "for"
+      },
+      {
+        "start_s": 135.52,
+        "text": "open"
+      },
+      {
+        "start_s": 135.76,
+        "text": "research"
+      },
+      {
+        "start_s": 136.239,
+        "text": "data"
+      },
+      {
+        "start_s": 136.64,
+        "text": "as"
+      },
+      {
+        "start_s": 136.8,
+        "text": "well"
+      },
+      {
+        "start_s": 138.08,
+        "text": "this"
+      },
+      {
+        "start_s": 138.48,
+        "text": "can"
+      },
+      {
+        "start_s": 138.64,
+        "text": "be"
+      },
+      {
+        "start_s": 138.8,
+        "text": "made"
+      },
+      {
+        "start_s": 139.04,
+        "text": "available"
+      },
+      {
+        "start_s": 139.599,
+        "text": "under"
+      },
+      {
+        "start_s": 140.0,
+        "text": "a"
+      },
+      {
+        "start_s": 140.08,
+        "text": "cc"
+      },
+      {
+        "start_s": 140.4,
+        "text": "license"
+      },
+      {
+        "start_s": 141.2,
+        "text": "and"
+      },
+      {
+        "start_s": 141.36,
+        "text": "you"
+      },
+      {
+        "start_s": 141.52,
+        "text": "can"
+      },
+      {
+        "start_s": 141.84,
+        "text": "also"
+      },
+      {
+        "start_s": 142.239,
+        "text": "apply"
+      },
+      {
+        "start_s": 142.72,
+        "text": "a"
+      },
+      {
+        "start_s": 142.879,
+        "text": "cc"
+      },
+      {
+        "start_s": 143.2,
+        "text": "license"
+      },
+      {
+        "start_s": 143.68,
+        "text": "for"
+      },
+      {
+        "start_s": 144.0,
+        "text": "all"
+      },
+      {
+        "start_s": 144.319,
+        "text": "documents"
+      },
+      {
+        "start_s": 145.28,
+        "text": "published"
+      },
+      {
+        "start_s": 145.76,
+        "text": "by"
+      },
+      {
+        "start_s": 145.92,
+        "text": "yourself"
+      },
+      {
+        "start_s": 146.879,
+        "text": "technical"
+      },
+      {
+        "start_s": 147.36,
+        "text": "reports"
+      },
+      {
+        "start_s": 147.92,
+        "text": "preprint"
+      },
+      {
+        "start_s": 148.64,
+        "text": "etc"
+      },
+      {
+        "start_s": 152.0,
+        "text": "what"
+      },
+      {
+        "start_s": 152.239,
+        "text": "are"
+      },
+      {
+        "start_s": 152.4,
+        "text": "the"
+      },
+      {
+        "start_s": 152.56,
+        "text": "creative"
+      },
+      {
+        "start_s": 152.959,
+        "text": "commons"
+      },
+      {
+        "start_s": 153.36,
+        "text": "licenses"
+      },
+      {
+        "start_s": 154.4,
+        "text": "there"
+      },
+      {
+        "start_s": 154.64,
+        "text": "are"
+      },
+      {
+        "start_s": 154.8,
+        "text": "six"
+      },
+      {
+        "start_s": 155.2,
+        "text": "cc"
+      },
+      {
+        "start_s": 155.599,
+        "text": "licenses"
+      },
+      {
+        "start_s": 156.72,
+        "text": "every"
+      },
+      {
+        "start_s": 157.04,
+        "text": "license"
+      },
+      {
+        "start_s": 157.599,
+        "text": "is"
+      },
+      {
+        "start_s": 157.76,
+        "text": "summarized"
+      },
+      {
+        "start_s": 158.4,
+        "text": "by"
+      },
+      {
+        "start_s": 158.64,
+        "text": "a"
+      },
+      {
+        "start_s": 158.8,
+        "text": "standardized"
+      },
+      {
+        "start_s": 159.599,
+        "text": "icon"
+      },
+      {
+        "start_s": 160.08,
+        "text": "system"
+      },
+      {
+        "start_s": 161.519,
+        "text": "the"
+      },
+      {
+        "start_s": 161.68,
+        "text": "first"
+      },
+      {
+        "start_s": 162.0,
+        "text": "icon"
+      },
+      {
+        "start_s": 162.64,
+        "text": "the"
+      },
+      {
+        "start_s": 162.879,
+        "text": "buy"
+      },
+      {
+        "start_s": 163.519,
+        "text": "the"
+      },
+      {
+        "start_s": 163.68,
+        "text": "attribution"
+      },
+      {
+        "start_s": 164.72,
+        "text": "is"
+      },
+      {
+        "start_s": 164.959,
+        "text": "mandatory"
+      },
+      {
+        "start_s": 166.319,
+        "text": "in"
+      },
+      {
+        "start_s": 166.56,
+        "text": "all"
+      },
+      {
+        "start_s": 166.72,
+        "text": "licenses"
+      },
+      {
+        "start_s": 167.519,
+        "text": "creators"
+      },
+      {
+        "start_s": 168.239,
+        "text": "always"
+      },
+      {
+        "start_s": 168.72,
+        "text": "have"
+      },
+      {
+        "start_s": 168.879,
+        "text": "to"
+      },
+      {
+        "start_s": 169.04,
+        "text": "be"
+      },
+      {
+        "start_s": 169.28,
+        "text": "properly"
+      },
+      {
+        "start_s": 169.76,
+        "text": "credited"
+      },
+      {
+        "start_s": 171.28,
+        "text": "the"
+      },
+      {
+        "start_s": 171.44,
+        "text": "cc"
+      },
+      {
+        "start_s": 171.76,
+        "text": "by"
+      },
+      {
+        "start_s": 172.08,
+        "text": "license"
+      },
+      {
+        "start_s": 172.8,
+        "text": "is"
+      },
+      {
+        "start_s": 172.959,
+        "text": "the"
+      },
+      {
+        "start_s": 173.12,
+        "text": "more"
+      },
+      {
+        "start_s": 173.36,
+        "text": "open"
+      },
+      {
+        "start_s": 173.68,
+        "text": "one"
+      },
+      {
+        "start_s": 174.08,
+        "text": "it"
+      },
+      {
+        "start_s": 174.239,
+        "text": "is"
+      },
+      {
+        "start_s": 174.48,
+        "text": "recommended"
+      },
+      {
+        "start_s": 175.2,
+        "text": "for"
+      },
+      {
+        "start_s": 175.599,
+        "text": "maximum"
+      },
+      {
+        "start_s": 176.08,
+        "text": "dissemination"
+      },
+      {
+        "start_s": 177.04,
+        "text": "and"
+      },
+      {
+        "start_s": 177.2,
+        "text": "use"
+      },
+      {
+        "start_s": 177.68,
+        "text": "of"
+      },
+      {
+        "start_s": 178.159,
+        "text": "licensed"
+      },
+      {
+        "start_s": 178.72,
+        "text": "material"
+      },
+      {
+        "start_s": 179.76,
+        "text": "because"
+      },
+      {
+        "start_s": 180.159,
+        "text": "all"
+      },
+      {
+        "start_s": 180.319,
+        "text": "reuse"
+      },
+      {
+        "start_s": 180.72,
+        "text": "cases"
+      },
+      {
+        "start_s": 181.28,
+        "text": "are"
+      },
+      {
+        "start_s": 181.44,
+        "text": "permitted"
+      },
+      {
+        "start_s": 182.08,
+        "text": "with"
+      },
+      {
+        "start_s": 182.239,
+        "text": "this"
+      },
+      {
+        "start_s": 182.84,
+        "text": "license"
+      },
+      {
+        "start_s": 184.4,
+        "text": "with"
+      },
+      {
+        "start_s": 184.64,
+        "text": "a"
+      },
+      {
+        "start_s": 184.72,
+        "text": "share"
+      },
+      {
+        "start_s": 185.04,
+        "text": "alike"
+      },
+      {
+        "start_s": 185.76,
+        "text": "license"
+      },
+      {
+        "start_s": 186.319,
+        "text": "the"
+      },
+      {
+        "start_s": 186.56,
+        "text": "sa"
+      },
+      {
+        "start_s": 187.44,
+        "text": "new"
+      },
+      {
+        "start_s": 187.68,
+        "text": "works"
+      },
+      {
+        "start_s": 188.239,
+        "text": "resulting"
+      },
+      {
+        "start_s": 188.879,
+        "text": "from"
+      },
+      {
+        "start_s": 189.2,
+        "text": "materials"
+      },
+      {
+        "start_s": 190.0,
+        "text": "under"
+      },
+      {
+        "start_s": 190.319,
+        "text": "the"
+      },
+      {
+        "start_s": 190.56,
+        "text": "share"
+      },
+      {
+        "start_s": 190.72,
+        "text": "alike"
+      },
+      {
+        "start_s": 191.12,
+        "text": "license"
+      },
+      {
+        "start_s": 192.0,
+        "text": "must"
+      },
+      {
+        "start_s": 192.319,
+        "text": "also"
+      },
+      {
+        "start_s": 192.64,
+        "text": "be"
+      },
+      {
+        "start_s": 192.8,
+        "text": "distributed"
+      },
+      {
+        "start_s": 193.84,
+        "text": "under"
+      },
+      {
+        "start_s": 194.319,
+        "text": "this"
+      },
+      {
+        "start_s": 194.72,
+        "text": "same"
+      },
+      {
+        "start_s": 195.04,
+        "text": "license"
+      },
+      {
+        "start_s": 195.92,
+        "text": "it"
+      },
+      {
+        "start_s": 196.08,
+        "text": "is"
+      },
+      {
+        "start_s": 196.239,
+        "text": "a"
+      },
+      {
+        "start_s": 196.319,
+        "text": "kind"
+      },
+      {
+        "start_s": 196.56,
+        "text": "of"
+      },
+      {
+        "start_s": 196.8,
+        "text": "activist"
+      },
+      {
+        "start_s": 197.36,
+        "text": "approach"
+      },
+      {
+        "start_s": 198.239,
+        "text": "if"
+      },
+      {
+        "start_s": 198.4,
+        "text": "you"
+      },
+      {
+        "start_s": 198.72,
+        "text": "already"
+      },
+      {
+        "start_s": 199.04,
+        "text": "have"
+      },
+      {
+        "start_s": 199.28,
+        "text": "seen"
+      },
+      {
+        "start_s": 199.68,
+        "text": "the"
+      },
+      {
+        "start_s": 200.159,
+        "text": "document"
+      },
+      {
+        "start_s": 200.8,
+        "text": "published"
+      },
+      {
+        "start_s": 201.2,
+        "text": "by"
+      },
+      {
+        "start_s": 201.36,
+        "text": "the"
+      },
+      {
+        "start_s": 201.519,
+        "text": "epfl"
+      },
+      {
+        "start_s": 202.08,
+        "text": "library"
+      },
+      {
+        "start_s": 203.44,
+        "text": "very"
+      },
+      {
+        "start_s": 203.76,
+        "text": "often"
+      },
+      {
+        "start_s": 204.64,
+        "text": "these"
+      },
+      {
+        "start_s": 204.879,
+        "text": "documents"
+      },
+      {
+        "start_s": 205.519,
+        "text": "are"
+      },
+      {
+        "start_s": 205.84,
+        "text": "under"
+      },
+      {
+        "start_s": 206.879,
+        "text": "sa"
+      },
+      {
+        "start_s": 207.519,
+        "text": "license"
+      },
+      {
+        "start_s": 210.159,
+        "text": "with"
+      },
+      {
+        "start_s": 210.84,
+        "text": "non-commercial"
+      },
+      {
+        "start_s": 212.159,
+        "text": "licenses"
+      },
+      {
+        "start_s": 213.2,
+        "text": "no"
+      },
+      {
+        "start_s": 213.44,
+        "text": "commercial"
+      },
+      {
+        "start_s": 213.92,
+        "text": "use"
+      },
+      {
+        "start_s": 214.159,
+        "text": "can"
+      },
+      {
+        "start_s": 214.319,
+        "text": "be"
+      },
+      {
+        "start_s": 214.48,
+        "text": "done"
+      },
+      {
+        "start_s": 214.72,
+        "text": "with"
+      },
+      {
+        "start_s": 214.879,
+        "text": "the"
+      },
+      {
+        "start_s": 215.04,
+        "text": "work"
+      },
+      {
+        "start_s": 215.36,
+        "text": "of"
+      },
+      {
+        "start_s": 215.519,
+        "text": "course"
+      },
+      {
+        "start_s": 216.08,
+        "text": "and"
+      },
+      {
+        "start_s": 216.319,
+        "text": "for"
+      },
+      {
+        "start_s": 216.48,
+        "text": "example"
+      },
+      {
+        "start_s": 216.959,
+        "text": "it"
+      },
+      {
+        "start_s": 217.04,
+        "text": "can"
+      },
+      {
+        "start_s": 217.28,
+        "text": "prevent"
+      },
+      {
+        "start_s": 217.68,
+        "text": "users"
+      },
+      {
+        "start_s": 218.239,
+        "text": "including"
+      },
+      {
+        "start_s": 218.72,
+        "text": "you"
+      },
+      {
+        "start_s": 219.36,
+        "text": "to"
+      },
+      {
+        "start_s": 219.519,
+        "text": "reuse"
+      },
+      {
+        "start_s": 220.159,
+        "text": "the"
+      },
+      {
+        "start_s": 220.319,
+        "text": "material"
+      },
+      {
+        "start_s": 221.04,
+        "text": "in"
+      },
+      {
+        "start_s": 221.2,
+        "text": "an"
+      },
+      {
+        "start_s": 221.36,
+        "text": "article"
+      },
+      {
+        "start_s": 221.84,
+        "text": "published"
+      },
+      {
+        "start_s": 222.4,
+        "text": "by"
+      },
+      {
+        "start_s": 222.799,
+        "text": "a"
+      },
+      {
+        "start_s": 222.959,
+        "text": "for-profit"
+      },
+      {
+        "start_s": 223.519,
+        "text": "society"
+      },
+      {
+        "start_s": 224.239,
+        "text": "such"
+      },
+      {
+        "start_s": 224.48,
+        "text": "as"
+      },
+      {
+        "start_s": 224.72,
+        "text": "big"
+      },
+      {
+        "start_s": 224.879,
+        "text": "commercial"
+      },
+      {
+        "start_s": 225.36,
+        "text": "publishers"
+      },
+      {
+        "start_s": 227.36,
+        "text": "the"
+      },
+      {
+        "start_s": 227.519,
+        "text": "last"
+      },
+      {
+        "start_s": 228.0,
+        "text": "icon"
+      },
+      {
+        "start_s": 228.64,
+        "text": "the"
+      },
+      {
+        "start_s": 228.959,
+        "text": "nd"
+      },
+      {
+        "start_s": 229.519,
+        "text": "no"
+      },
+      {
+        "start_s": 229.68,
+        "text": "derivatives"
+      },
+      {
+        "start_s": 231.36,
+        "text": "with"
+      },
+      {
+        "start_s": 231.599,
+        "text": "this"
+      },
+      {
+        "start_s": 231.84,
+        "text": "one"
+      },
+      {
+        "start_s": 232.159,
+        "text": "no"
+      },
+      {
+        "start_s": 232.4,
+        "text": "adaptation"
+      },
+      {
+        "start_s": 233.04,
+        "text": "can"
+      },
+      {
+        "start_s": 233.2,
+        "text": "be"
+      },
+      {
+        "start_s": 233.36,
+        "text": "made"
+      },
+      {
+        "start_s": 233.68,
+        "text": "with"
+      },
+      {
+        "start_s": 233.84,
+        "text": "your"
+      },
+      {
+        "start_s": 234.08,
+        "text": "work"
+      },
+      {
+        "start_s": 235.36,
+        "text": "this"
+      },
+      {
+        "start_s": 235.68,
+        "text": "license"
+      },
+      {
+        "start_s": 236.08,
+        "text": "prohibits"
+      },
+      {
+        "start_s": 236.64,
+        "text": "users"
+      },
+      {
+        "start_s": 237.12,
+        "text": "from"
+      },
+      {
+        "start_s": 237.439,
+        "text": "adapting"
+      },
+      {
+        "start_s": 238.08,
+        "text": "remixing"
+      },
+      {
+        "start_s": 238.799,
+        "text": "transforming"
+      },
+      {
+        "start_s": 239.68,
+        "text": "translating"
+      },
+      {
+        "start_s": 240.56,
+        "text": "or"
+      },
+      {
+        "start_s": 240.879,
+        "text": "updating"
+      },
+      {
+        "start_s": 241.519,
+        "text": "the"
+      },
+      {
+        "start_s": 241.68,
+        "text": "original"
+      },
+      {
+        "start_s": 242.239,
+        "text": "work"
+      },
+      {
+        "start_s": 242.56,
+        "text": "to"
+      },
+      {
+        "start_s": 242.72,
+        "text": "create"
+      },
+      {
+        "start_s": 243.04,
+        "text": "a"
+      },
+      {
+        "start_s": 243.12,
+        "text": "new"
+      },
+      {
+        "start_s": 243.28,
+        "text": "one"
+      },
+      {
+        "start_s": 244.319,
+        "text": "it"
+      },
+      {
+        "start_s": 244.48,
+        "text": "is"
+      },
+      {
+        "start_s": 244.56,
+        "text": "recommended"
+      },
+      {
+        "start_s": 245.28,
+        "text": "not"
+      },
+      {
+        "start_s": 245.519,
+        "text": "to"
+      },
+      {
+        "start_s": 245.68,
+        "text": "use"
+      },
+      {
+        "start_s": 245.92,
+        "text": "the"
+      },
+      {
+        "start_s": 246.159,
+        "text": "nd"
+      },
+      {
+        "start_s": 246.64,
+        "text": "license"
+      },
+      {
+        "start_s": 247.76,
+        "text": "in"
+      },
+      {
+        "start_s": 248.0,
+        "text": "open"
+      },
+      {
+        "start_s": 248.319,
+        "text": "access"
+      },
+      {
+        "start_s": 248.72,
+        "text": "or"
+      },
+      {
+        "start_s": 248.879,
+        "text": "open"
+      },
+      {
+        "start_s": 249.12,
+        "text": "research"
+      },
+      {
+        "start_s": 249.599,
+        "text": "data"
+      },
+      {
+        "start_s": 250.0,
+        "text": "context"
+      },
+      {
+        "start_s": 253.2,
+        "text": "how"
+      },
+      {
+        "start_s": 253.439,
+        "text": "to"
+      },
+      {
+        "start_s": 253.599,
+        "text": "choose"
+      },
+      {
+        "start_s": 253.84,
+        "text": "the"
+      },
+      {
+        "start_s": 254.0,
+        "text": "right"
+      },
+      {
+        "start_s": 254.319,
+        "text": "cc"
+      },
+      {
+        "start_s": 254.64,
+        "text": "license"
+      },
+      {
+        "start_s": 255.84,
+        "text": "depending"
+      },
+      {
+        "start_s": 256.32,
+        "text": "on"
+      },
+      {
+        "start_s": 256.479,
+        "text": "what"
+      },
+      {
+        "start_s": 256.639,
+        "text": "you"
+      },
+      {
+        "start_s": 256.959,
+        "text": "think"
+      },
+      {
+        "start_s": 257.44,
+        "text": "that"
+      },
+      {
+        "start_s": 257.68,
+        "text": "could"
+      },
+      {
+        "start_s": 258.0,
+        "text": "or"
+      },
+      {
+        "start_s": 258.16,
+        "text": "should"
+      },
+      {
+        "start_s": 258.4,
+        "text": "be"
+      },
+      {
+        "start_s": 258.56,
+        "text": "done"
+      },
+      {
+        "start_s": 258.959,
+        "text": "with"
+      },
+      {
+        "start_s": 259.199,
+        "text": "your"
+      },
+      {
+        "start_s": 259.359,
+        "text": "work"
+      },
+      {
+        "start_s": 259.68,
+        "text": "in"
+      },
+      {
+        "start_s": 259.84,
+        "text": "the"
+      },
+      {
+        "start_s": 259.919,
+        "text": "future"
+      },
+      {
+        "start_s": 260.4,
+        "text": "including"
+      },
+      {
+        "start_s": 260.959,
+        "text": "by"
+      },
+      {
+        "start_s": 261.12,
+        "text": "yourself"
+      },
+      {
+        "start_s": 262.0,
+        "text": "choose"
+      },
+      {
+        "start_s": 262.24,
+        "text": "the"
+      },
+      {
+        "start_s": 262.4,
+        "text": "more"
+      },
+      {
+        "start_s": 262.72,
+        "text": "appropriate"
+      },
+      {
+        "start_s": 263.36,
+        "text": "license"
+      },
+      {
+        "start_s": 264.56,
+        "text": "here"
+      },
+      {
+        "start_s": 264.8,
+        "text": "is"
+      },
+      {
+        "start_s": 264.96,
+        "text": "a"
+      },
+      {
+        "start_s": 265.12,
+        "text": "very"
+      },
+      {
+        "start_s": 265.759,
+        "text": "interesting"
+      },
+      {
+        "start_s": 266.32,
+        "text": "citation"
+      },
+      {
+        "start_s": 266.96,
+        "text": "from"
+      },
+      {
+        "start_s": 267.199,
+        "text": "the"
+      },
+      {
+        "start_s": 267.44,
+        "text": "creative"
+      },
+      {
+        "start_s": 268.0,
+        "text": "commons"
+      },
+      {
+        "start_s": 268.4,
+        "text": "foundation"
+      },
+      {
+        "start_s": 269.68,
+        "text": "the"
+      },
+      {
+        "start_s": 269.84,
+        "text": "best"
+      },
+      {
+        "start_s": 270.16,
+        "text": "way"
+      },
+      {
+        "start_s": 270.4,
+        "text": "to"
+      },
+      {
+        "start_s": 270.639,
+        "text": "decide"
+      },
+      {
+        "start_s": 271.12,
+        "text": "which"
+      },
+      {
+        "start_s": 271.36,
+        "text": "is"
+      },
+      {
+        "start_s": 271.52,
+        "text": "appropriate"
+      },
+      {
+        "start_s": 272.16,
+        "text": "for"
+      },
+      {
+        "start_s": 272.4,
+        "text": "you"
+      },
+      {
+        "start_s": 272.88,
+        "text": "is"
+      },
+      {
+        "start_s": 273.04,
+        "text": "to"
+      },
+      {
+        "start_s": 273.199,
+        "text": "think"
+      },
+      {
+        "start_s": 273.52,
+        "text": "about"
+      },
+      {
+        "start_s": 274.08,
+        "text": "why"
+      },
+      {
+        "start_s": 274.32,
+        "text": "you"
+      },
+      {
+        "start_s": 274.479,
+        "text": "want"
+      },
+      {
+        "start_s": 274.72,
+        "text": "to"
+      },
+      {
+        "start_s": 274.88,
+        "text": "share"
+      },
+      {
+        "start_s": 275.12,
+        "text": "your"
+      },
+      {
+        "start_s": 275.28,
+        "text": "work"
+      },
+      {
+        "start_s": 276.0,
+        "text": "and"
+      },
+      {
+        "start_s": 276.24,
+        "text": "how"
+      },
+      {
+        "start_s": 276.479,
+        "text": "you"
+      },
+      {
+        "start_s": 276.72,
+        "text": "hope"
+      },
+      {
+        "start_s": 277.04,
+        "text": "others"
+      },
+      {
+        "start_s": 277.44,
+        "text": "will"
+      },
+      {
+        "start_s": 277.68,
+        "text": "use"
+      },
+      {
+        "start_s": 277.919,
+        "text": "that"
+      },
+      {
+        "start_s": 278.16,
+        "text": "work"
+      },
+      {
+        "start_s": 279.199,
+        "text": "but"
+      },
+      {
+        "start_s": 279.44,
+        "text": "there"
+      },
+      {
+        "start_s": 279.6,
+        "text": "are"
+      },
+      {
+        "start_s": 279.759,
+        "text": "also"
+      },
+      {
+        "start_s": 280.24,
+        "text": "tools"
+      },
+      {
+        "start_s": 280.72,
+        "text": "to"
+      },
+      {
+        "start_s": 280.88,
+        "text": "help"
+      },
+      {
+        "start_s": 281.199,
+        "text": "you"
+      },
+      {
+        "start_s": 281.759,
+        "text": "with"
+      },
+      {
+        "start_s": 282.0,
+        "text": "the"
+      },
+      {
+        "start_s": 282.16,
+        "text": "choice"
+      },
+      {
+        "start_s": 283.36,
+        "text": "for"
+      },
+      {
+        "start_s": 283.6,
+        "text": "example"
+      },
+      {
+        "start_s": 284.56,
+        "text": "this"
+      },
+      {
+        "start_s": 284.8,
+        "text": "one"
+      },
+      {
+        "start_s": 285.759,
+        "text": "created"
+      },
+      {
+        "start_s": 286.16,
+        "text": "by"
+      },
+      {
+        "start_s": 286.4,
+        "text": "the"
+      },
+      {
+        "start_s": 286.56,
+        "text": "creative"
+      },
+      {
+        "start_s": 287.04,
+        "text": "commons"
+      },
+      {
+        "start_s": 287.68,
+        "text": "foundation"
+      },
+      {
+        "start_s": 290.88,
+        "text": "and"
+      },
+      {
+        "start_s": 291.12,
+        "text": "now"
+      },
+      {
+        "start_s": 291.52,
+        "text": "i"
+      },
+      {
+        "start_s": 291.6,
+        "text": "will"
+      },
+      {
+        "start_s": 291.84,
+        "text": "try"
+      },
+      {
+        "start_s": 292.08,
+        "text": "to"
+      },
+      {
+        "start_s": 292.32,
+        "text": "illustrate"
+      },
+      {
+        "start_s": 292.96,
+        "text": "with"
+      },
+      {
+        "start_s": 293.199,
+        "text": "concrete"
+      },
+      {
+        "start_s": 293.84,
+        "text": "examples"
+      },
+      {
+        "start_s": 294.479,
+        "text": "how"
+      },
+      {
+        "start_s": 295.04,
+        "text": "cc"
+      },
+      {
+        "start_s": 295.44,
+        "text": "license"
+      },
+      {
+        "start_s": 296.16,
+        "text": "can"
+      },
+      {
+        "start_s": 296.4,
+        "text": "change"
+      },
+      {
+        "start_s": 297.68,
+        "text": "things"
+      },
+      {
+        "start_s": 298.16,
+        "text": "for"
+      },
+      {
+        "start_s": 298.479,
+        "text": "users"
+      },
+      {
+        "start_s": 299.84,
+        "text": "i"
+      },
+      {
+        "start_s": 300.08,
+        "text": "have"
+      },
+      {
+        "start_s": 300.24,
+        "text": "three"
+      },
+      {
+        "start_s": 301.12,
+        "text": "reuse"
+      },
+      {
+        "start_s": 301.6,
+        "text": "cases"
+      },
+      {
+        "start_s": 303.039,
+        "text": "the"
+      },
+      {
+        "start_s": 303.199,
+        "text": "first"
+      },
+      {
+        "start_s": 303.52,
+        "text": "one"
+      },
+      {
+        "start_s": 303.84,
+        "text": "i"
+      },
+      {
+        "start_s": 304.0,
+        "text": "want"
+      },
+      {
+        "start_s": 304.16,
+        "text": "to"
+      },
+      {
+        "start_s": 304.4,
+        "text": "reuse"
+      },
+      {
+        "start_s": 305.44,
+        "text": "figures"
+      },
+      {
+        "start_s": 306.16,
+        "text": "for"
+      },
+      {
+        "start_s": 306.4,
+        "text": "illustrating"
+      },
+      {
+        "start_s": 307.039,
+        "text": "a"
+      },
+      {
+        "start_s": 307.12,
+        "text": "presentation"
+      },
+      {
+        "start_s": 308.08,
+        "text": "during"
+      },
+      {
+        "start_s": 308.479,
+        "text": "a"
+      },
+      {
+        "start_s": 308.56,
+        "text": "conference"
+      },
+      {
+        "start_s": 309.52,
+        "text": "i"
+      },
+      {
+        "start_s": 309.68,
+        "text": "am"
+      },
+      {
+        "start_s": 309.84,
+        "text": "not"
+      },
+      {
+        "start_s": 310.0,
+        "text": "the"
+      },
+      {
+        "start_s": 310.16,
+        "text": "author"
+      },
+      {
+        "start_s": 310.56,
+        "text": "of"
+      },
+      {
+        "start_s": 310.639,
+        "text": "the"
+      },
+      {
+        "start_s": 310.8,
+        "text": "figures"
+      },
+      {
+        "start_s": 312.24,
+        "text": "the"
+      },
+      {
+        "start_s": 312.479,
+        "text": "second"
+      },
+      {
+        "start_s": 312.8,
+        "text": "reuse"
+      },
+      {
+        "start_s": 313.28,
+        "text": "case"
+      },
+      {
+        "start_s": 314.0,
+        "text": "is"
+      },
+      {
+        "start_s": 314.72,
+        "text": "i"
+      },
+      {
+        "start_s": 314.96,
+        "text": "am"
+      },
+      {
+        "start_s": 315.12,
+        "text": "the"
+      },
+      {
+        "start_s": 315.28,
+        "text": "author"
+      },
+      {
+        "start_s": 315.68,
+        "text": "of"
+      },
+      {
+        "start_s": 315.919,
+        "text": "an"
+      },
+      {
+        "start_s": 316.08,
+        "text": "article"
+      },
+      {
+        "start_s": 316.479,
+        "text": "and"
+      },
+      {
+        "start_s": 316.639,
+        "text": "i"
+      },
+      {
+        "start_s": 316.72,
+        "text": "want"
+      },
+      {
+        "start_s": 316.96,
+        "text": "to"
+      },
+      {
+        "start_s": 317.12,
+        "text": "deposit"
+      },
+      {
+        "start_s": 317.68,
+        "text": "it"
+      },
+      {
+        "start_s": 317.84,
+        "text": "in"
+      },
+      {
+        "start_s": 318.0,
+        "text": "my"
+      },
+      {
+        "start_s": 318.16,
+        "text": "institutional"
+      },
+      {
+        "start_s": 318.88,
+        "text": "repository"
+      },
+      {
+        "start_s": 320.24,
+        "text": "and"
+      },
+      {
+        "start_s": 320.4,
+        "text": "the"
+      },
+      {
+        "start_s": 320.56,
+        "text": "third"
+      },
+      {
+        "start_s": 320.88,
+        "text": "reuse"
+      },
+      {
+        "start_s": 321.28,
+        "text": "case"
+      },
+      {
+        "start_s": 321.84,
+        "text": "is"
+      },
+      {
+        "start_s": 322.8,
+        "text": "i"
+      },
+      {
+        "start_s": 322.96,
+        "text": "am"
+      },
+      {
+        "start_s": 323.12,
+        "text": "not"
+      },
+      {
+        "start_s": 323.28,
+        "text": "the"
+      },
+      {
+        "start_s": 323.44,
+        "text": "author"
+      },
+      {
+        "start_s": 323.759,
+        "text": "of"
+      },
+      {
+        "start_s": 323.919,
+        "text": "the"
+      },
+      {
+        "start_s": 324.08,
+        "text": "figures"
+      },
+      {
+        "start_s": 324.479,
+        "text": "but"
+      },
+      {
+        "start_s": 324.72,
+        "text": "i"
+      },
+      {
+        "start_s": 324.8,
+        "text": "want"
+      },
+      {
+        "start_s": 325.039,
+        "text": "to"
+      },
+      {
+        "start_s": 325.199,
+        "text": "reuse"
+      },
+      {
+        "start_s": 325.6,
+        "text": "them"
+      },
+      {
+        "start_s": 326.4,
+        "text": "in"
+      },
+      {
+        "start_s": 327.28,
+        "text": "an"
+      },
+      {
+        "start_s": 327.44,
+        "text": "article"
+      },
+      {
+        "start_s": 328.08,
+        "text": "so"
+      },
+      {
+        "start_s": 328.32,
+        "text": "for"
+      },
+      {
+        "start_s": 328.56,
+        "text": "commercial"
+      },
+      {
+        "start_s": 329.199,
+        "text": "purposes"
+      },
+      {
+        "start_s": 330.88,
+        "text": "i"
+      },
+      {
+        "start_s": 331.12,
+        "text": "have"
+      },
+      {
+        "start_s": 331.36,
+        "text": "three"
+      },
+      {
+        "start_s": 331.919,
+        "text": "uh"
+      },
+      {
+        "start_s": 332.32,
+        "text": "articles"
+      },
+      {
+        "start_s": 333.44,
+        "text": "in"
+      },
+      {
+        "start_s": 333.6,
+        "text": "which"
+      },
+      {
+        "start_s": 334.08,
+        "text": "uh"
+      },
+      {
+        "start_s": 334.639,
+        "text": "the"
+      },
+      {
+        "start_s": 334.8,
+        "text": "contents"
+      },
+      {
+        "start_s": 335.52,
+        "text": "are"
+      },
+      {
+        "start_s": 336.32,
+        "text": "uh"
+      },
+      {
+        "start_s": 336.84,
+        "text": "present"
+      },
+      {
+        "start_s": 339.12,
+        "text": "the"
+      },
+      {
+        "start_s": 339.28,
+        "text": "first"
+      },
+      {
+        "start_s": 339.6,
+        "text": "one"
+      },
+      {
+        "start_s": 340.639,
+        "text": "this"
+      },
+      {
+        "start_s": 340.88,
+        "text": "one"
+      },
+      {
+        "start_s": 342.639,
+        "text": "is"
+      },
+      {
+        "start_s": 343.039,
+        "text": "not"
+      },
+      {
+        "start_s": 343.36,
+        "text": "an"
+      },
+      {
+        "start_s": 343.52,
+        "text": "open"
+      },
+      {
+        "start_s": 343.84,
+        "text": "access"
+      },
+      {
+        "start_s": 344.4,
+        "text": "article"
+      },
+      {
+        "start_s": 345.36,
+        "text": "it"
+      },
+      {
+        "start_s": 345.52,
+        "text": "is"
+      },
+      {
+        "start_s": 345.6,
+        "text": "a"
+      },
+      {
+        "start_s": 345.68,
+        "text": "subscription-based"
+      },
+      {
+        "start_s": 346.72,
+        "text": "article"
+      },
+      {
+        "start_s": 347.36,
+        "text": "so"
+      },
+      {
+        "start_s": 347.68,
+        "text": "the"
+      },
+      {
+        "start_s": 347.84,
+        "text": "permission"
+      },
+      {
+        "start_s": 348.639,
+        "text": "is"
+      },
+      {
+        "start_s": 348.8,
+        "text": "required"
+      },
+      {
+        "start_s": 349.52,
+        "text": "for"
+      },
+      {
+        "start_s": 349.759,
+        "text": "all"
+      },
+      {
+        "start_s": 350.32,
+        "text": "my"
+      },
+      {
+        "start_s": 350.639,
+        "text": "three"
+      },
+      {
+        "start_s": 351.039,
+        "text": "reuse"
+      },
+      {
+        "start_s": 351.52,
+        "text": "cases"
+      },
+      {
+        "start_s": 352.479,
+        "text": "how"
+      },
+      {
+        "start_s": 352.639,
+        "text": "to"
+      },
+      {
+        "start_s": 352.8,
+        "text": "request"
+      },
+      {
+        "start_s": 353.199,
+        "text": "the"
+      },
+      {
+        "start_s": 353.36,
+        "text": "permission"
+      },
+      {
+        "start_s": 354.479,
+        "text": "here"
+      },
+      {
+        "start_s": 354.72,
+        "text": "is"
+      },
+      {
+        "start_s": 354.88,
+        "text": "a"
+      },
+      {
+        "start_s": 354.96,
+        "text": "link"
+      },
+      {
+        "start_s": 355.44,
+        "text": "rights"
+      },
+      {
+        "start_s": 355.759,
+        "text": "and"
+      },
+      {
+        "start_s": 355.919,
+        "text": "permission"
+      },
+      {
+        "start_s": 357.52,
+        "text": "and"
+      },
+      {
+        "start_s": 357.759,
+        "text": "by"
+      },
+      {
+        "start_s": 358.0,
+        "text": "clicking"
+      },
+      {
+        "start_s": 358.72,
+        "text": "this"
+      },
+      {
+        "start_s": 359.039,
+        "text": "link"
+      },
+      {
+        "start_s": 359.6,
+        "text": "you"
+      },
+      {
+        "start_s": 359.84,
+        "text": "will"
+      },
+      {
+        "start_s": 360.16,
+        "text": "get"
+      },
+      {
+        "start_s": 360.639,
+        "text": "this"
+      },
+      {
+        "start_s": 361.199,
+        "text": "form"
+      },
+      {
+        "start_s": 362.24,
+        "text": "and"
+      },
+      {
+        "start_s": 363.28,
+        "text": "this"
+      },
+      {
+        "start_s": 364.0,
+        "text": "kind"
+      },
+      {
+        "start_s": 364.319,
+        "text": "of"
+      },
+      {
+        "start_s": 364.639,
+        "text": "form"
+      },
+      {
+        "start_s": 365.12,
+        "text": "is"
+      },
+      {
+        "start_s": 365.28,
+        "text": "used"
+      },
+      {
+        "start_s": 365.6,
+        "text": "by"
+      },
+      {
+        "start_s": 365.84,
+        "text": "most"
+      },
+      {
+        "start_s": 366.16,
+        "text": "publishers"
+      },
+      {
+        "start_s": 367.28,
+        "text": "by"
+      },
+      {
+        "start_s": 367.52,
+        "text": "filling"
+      },
+      {
+        "start_s": 367.919,
+        "text": "into"
+      },
+      {
+        "start_s": 368.16,
+        "text": "the"
+      },
+      {
+        "start_s": 368.319,
+        "text": "information"
+      },
+      {
+        "start_s": 369.039,
+        "text": "that"
+      },
+      {
+        "start_s": 369.28,
+        "text": "corresponds"
+      },
+      {
+        "start_s": 370.0,
+        "text": "to"
+      },
+      {
+        "start_s": 370.16,
+        "text": "my"
+      },
+      {
+        "start_s": 370.319,
+        "text": "first"
+      },
+      {
+        "start_s": 370.72,
+        "text": "case"
+      },
+      {
+        "start_s": 371.6,
+        "text": "here"
+      },
+      {
+        "start_s": 371.919,
+        "text": "is"
+      },
+      {
+        "start_s": 372.0,
+        "text": "the"
+      },
+      {
+        "start_s": 372.16,
+        "text": "price"
+      },
+      {
+        "start_s": 372.639,
+        "text": "i"
+      },
+      {
+        "start_s": 372.8,
+        "text": "get"
+      },
+      {
+        "start_s": 374.479,
+        "text": "so"
+      },
+      {
+        "start_s": 375.759,
+        "text": "i"
+      },
+      {
+        "start_s": 375.919,
+        "text": "have"
+      },
+      {
+        "start_s": 376.08,
+        "text": "to"
+      },
+      {
+        "start_s": 376.24,
+        "text": "go"
+      },
+      {
+        "start_s": 376.479,
+        "text": "on"
+      },
+      {
+        "start_s": 376.639,
+        "text": "to"
+      },
+      {
+        "start_s": 376.8,
+        "text": "finalize"
+      },
+      {
+        "start_s": 377.36,
+        "text": "the"
+      },
+      {
+        "start_s": 377.52,
+        "text": "authorization"
+      },
+      {
+        "start_s": 378.479,
+        "text": "and"
+      },
+      {
+        "start_s": 378.72,
+        "text": "pay"
+      },
+      {
+        "start_s": 379.28,
+        "text": "this"
+      },
+      {
+        "start_s": 380.0,
+        "text": "amount"
+      },
+      {
+        "start_s": 381.6,
+        "text": "for"
+      },
+      {
+        "start_s": 381.759,
+        "text": "my"
+      },
+      {
+        "start_s": 381.919,
+        "text": "second"
+      },
+      {
+        "start_s": 382.319,
+        "text": "reuse"
+      },
+      {
+        "start_s": 382.8,
+        "text": "case"
+      },
+      {
+        "start_s": 383.12,
+        "text": "i"
+      },
+      {
+        "start_s": 383.199,
+        "text": "want"
+      },
+      {
+        "start_s": 383.36,
+        "text": "to"
+      },
+      {
+        "start_s": 383.52,
+        "text": "deposit"
+      },
+      {
+        "start_s": 384.08,
+        "text": "my"
+      },
+      {
+        "start_s": 384.319,
+        "text": "full"
+      },
+      {
+        "start_s": 384.56,
+        "text": "article"
+      },
+      {
+        "start_s": 385.12,
+        "text": "in"
+      },
+      {
+        "start_s": 385.28,
+        "text": "my"
+      },
+      {
+        "start_s": 385.52,
+        "text": "institutional"
+      },
+      {
+        "start_s": 386.24,
+        "text": "repository"
+      },
+      {
+        "start_s": 387.52,
+        "text": "i"
+      },
+      {
+        "start_s": 387.919,
+        "text": "have"
+      },
+      {
+        "start_s": 388.24,
+        "text": "also"
+      },
+      {
+        "start_s": 389.039,
+        "text": "i"
+      },
+      {
+        "start_s": 389.199,
+        "text": "can"
+      },
+      {
+        "start_s": 389.919,
+        "text": "fill"
+      },
+      {
+        "start_s": 390.479,
+        "text": "the"
+      },
+      {
+        "start_s": 390.639,
+        "text": "form"
+      },
+      {
+        "start_s": 390.96,
+        "text": "but"
+      },
+      {
+        "start_s": 391.199,
+        "text": "the"
+      },
+      {
+        "start_s": 391.36,
+        "text": "information"
+      },
+      {
+        "start_s": 392.639,
+        "text": "regarding"
+      },
+      {
+        "start_s": 393.199,
+        "text": "the"
+      },
+      {
+        "start_s": 393.36,
+        "text": "self"
+      },
+      {
+        "start_s": 393.68,
+        "text": "archiving"
+      },
+      {
+        "start_s": 394.4,
+        "text": "conditions"
+      },
+      {
+        "start_s": 395.039,
+        "text": "are"
+      },
+      {
+        "start_s": 395.28,
+        "text": "also"
+      },
+      {
+        "start_s": 396.16,
+        "text": "on"
+      },
+      {
+        "start_s": 396.4,
+        "text": "the"
+      },
+      {
+        "start_s": 396.56,
+        "text": "publisher"
+      },
+      {
+        "start_s": 397.12,
+        "text": "website"
+      },
+      {
+        "start_s": 398.4,
+        "text": "so"
+      },
+      {
+        "start_s": 398.639,
+        "text": "in"
+      },
+      {
+        "start_s": 398.8,
+        "text": "this"
+      },
+      {
+        "start_s": 399.039,
+        "text": "case"
+      },
+      {
+        "start_s": 399.6,
+        "text": "uh"
+      },
+      {
+        "start_s": 399.919,
+        "text": "by"
+      },
+      {
+        "start_s": 400.16,
+        "text": "clicking"
+      },
+      {
+        "start_s": 400.56,
+        "text": "on"
+      },
+      {
+        "start_s": 400.8,
+        "text": "continue"
+      },
+      {
+        "start_s": 401.759,
+        "text": "you"
+      },
+      {
+        "start_s": 402.0,
+        "text": "will"
+      },
+      {
+        "start_s": 402.16,
+        "text": "get"
+      },
+      {
+        "start_s": 402.56,
+        "text": "this"
+      },
+      {
+        "start_s": 402.8,
+        "text": "message"
+      },
+      {
+        "start_s": 403.6,
+        "text": "and"
+      },
+      {
+        "start_s": 404.16,
+        "text": "it"
+      },
+      {
+        "start_s": 404.319,
+        "text": "means"
+      },
+      {
+        "start_s": 404.56,
+        "text": "that"
+      },
+      {
+        "start_s": 404.8,
+        "text": "you"
+      },
+      {
+        "start_s": 404.96,
+        "text": "have"
+      },
+      {
+        "start_s": 405.12,
+        "text": "to"
+      },
+      {
+        "start_s": 405.36,
+        "text": "wait"
+      },
+      {
+        "start_s": 405.68,
+        "text": "12"
+      },
+      {
+        "start_s": 406.0,
+        "text": "months"
+      },
+      {
+        "start_s": 406.4,
+        "text": "after"
+      },
+      {
+        "start_s": 406.84,
+        "text": "publication"
+      },
+      {
+        "start_s": 407.84,
+        "text": "before"
+      },
+      {
+        "start_s": 408.4,
+        "text": "depositing"
+      },
+      {
+        "start_s": 409.039,
+        "text": "your"
+      },
+      {
+        "start_s": 409.28,
+        "text": "article"
+      },
+      {
+        "start_s": 409.759,
+        "text": "in"
+      },
+      {
+        "start_s": 409.84,
+        "text": "your"
+      },
+      {
+        "start_s": 410.08,
+        "text": "institutional"
+      },
+      {
+        "start_s": 410.639,
+        "text": "repository"
+      },
+      {
+        "start_s": 412.639,
+        "text": "for"
+      },
+      {
+        "start_s": 412.8,
+        "text": "my"
+      },
+      {
+        "start_s": 413.039,
+        "text": "third"
+      },
+      {
+        "start_s": 413.36,
+        "text": "reuse"
+      },
+      {
+        "start_s": 413.84,
+        "text": "case"
+      },
+      {
+        "start_s": 414.319,
+        "text": "i"
+      },
+      {
+        "start_s": 414.479,
+        "text": "want"
+      },
+      {
+        "start_s": 414.639,
+        "text": "to"
+      },
+      {
+        "start_s": 414.8,
+        "text": "reuse"
+      },
+      {
+        "start_s": 415.44,
+        "text": "figures"
+      },
+      {
+        "start_s": 415.919,
+        "text": "for"
+      },
+      {
+        "start_s": 416.08,
+        "text": "commercial"
+      },
+      {
+        "start_s": 416.639,
+        "text": "purposes"
+      },
+      {
+        "start_s": 417.44,
+        "text": "in"
+      },
+      {
+        "start_s": 417.599,
+        "text": "an"
+      },
+      {
+        "start_s": 417.759,
+        "text": "article"
+      },
+      {
+        "start_s": 418.96,
+        "text": "so"
+      },
+      {
+        "start_s": 420.08,
+        "text": "here"
+      },
+      {
+        "start_s": 420.639,
+        "text": "it"
+      },
+      {
+        "start_s": 420.8,
+        "text": "is"
+      },
+      {
+        "start_s": 421.12,
+        "text": "free"
+      },
+      {
+        "start_s": 421.44,
+        "text": "of"
+      },
+      {
+        "start_s": 421.599,
+        "text": "charge"
+      },
+      {
+        "start_s": 422.16,
+        "text": "but"
+      },
+      {
+        "start_s": 422.88,
+        "text": "uh"
+      },
+      {
+        "start_s": 424.08,
+        "text": "this"
+      },
+      {
+        "start_s": 424.319,
+        "text": "reuse"
+      },
+      {
+        "start_s": 424.96,
+        "text": "request"
+      },
+      {
+        "start_s": 425.36,
+        "text": "is"
+      },
+      {
+        "start_s": 425.52,
+        "text": "free"
+      },
+      {
+        "start_s": 425.68,
+        "text": "of"
+      },
+      {
+        "start_s": 425.84,
+        "text": "charge"
+      },
+      {
+        "start_s": 426.24,
+        "text": "also"
+      },
+      {
+        "start_s": 426.639,
+        "text": "you"
+      },
+      {
+        "start_s": 426.88,
+        "text": "are"
+      },
+      {
+        "start_s": 427.039,
+        "text": "required"
+      },
+      {
+        "start_s": 427.52,
+        "text": "to"
+      },
+      {
+        "start_s": 427.759,
+        "text": "obtain"
+      },
+      {
+        "start_s": 428.319,
+        "text": "a"
+      },
+      {
+        "start_s": 428.479,
+        "text": "license"
+      },
+      {
+        "start_s": 429.199,
+        "text": "through"
+      },
+      {
+        "start_s": 429.68,
+        "text": "this"
+      },
+      {
+        "start_s": 430.08,
+        "text": "form"
+      },
+      {
+        "start_s": 430.88,
+        "text": "so"
+      },
+      {
+        "start_s": 431.12,
+        "text": "you"
+      },
+      {
+        "start_s": 431.28,
+        "text": "have"
+      },
+      {
+        "start_s": 431.44,
+        "text": "to"
+      },
+      {
+        "start_s": 431.68,
+        "text": "obtain"
+      },
+      {
+        "start_s": 432.16,
+        "text": "permission"
+      },
+      {
+        "start_s": 432.8,
+        "text": "to"
+      },
+      {
+        "start_s": 433.039,
+        "text": "reuse"
+      },
+      {
+        "start_s": 434.16,
+        "text": "the"
+      },
+      {
+        "start_s": 434.319,
+        "text": "figures"
+      },
+      {
+        "start_s": 434.8,
+        "text": "in"
+      },
+      {
+        "start_s": 434.96,
+        "text": "an"
+      },
+      {
+        "start_s": 435.12,
+        "text": "article"
+      },
+      {
+        "start_s": 436.0,
+        "text": "even"
+      },
+      {
+        "start_s": 436.319,
+        "text": "if"
+      },
+      {
+        "start_s": 436.56,
+        "text": "it"
+      },
+      {
+        "start_s": 436.72,
+        "text": "is"
+      },
+      {
+        "start_s": 436.88,
+        "text": "free"
+      },
+      {
+        "start_s": 437.12,
+        "text": "of"
+      },
+      {
+        "start_s": 437.28,
+        "text": "charge"
+      },
+      {
+        "start_s": 439.44,
+        "text": "with"
+      },
+      {
+        "start_s": 439.68,
+        "text": "the"
+      },
+      {
+        "start_s": 439.84,
+        "text": "second"
+      },
+      {
+        "start_s": 440.24,
+        "text": "article"
+      },
+      {
+        "start_s": 440.96,
+        "text": "this"
+      },
+      {
+        "start_s": 441.199,
+        "text": "one"
+      },
+      {
+        "start_s": 441.52,
+        "text": "it"
+      },
+      {
+        "start_s": 441.68,
+        "text": "is"
+      },
+      {
+        "start_s": 441.759,
+        "text": "an"
+      },
+      {
+        "start_s": 441.919,
+        "text": "open"
+      },
+      {
+        "start_s": 442.319,
+        "text": "access"
+      },
+      {
+        "start_s": 442.72,
+        "text": "article"
+      },
+      {
+        "start_s": 443.36,
+        "text": "under"
+      },
+      {
+        "start_s": 443.68,
+        "text": "a"
+      },
+      {
+        "start_s": 443.84,
+        "text": "cc"
+      },
+      {
+        "start_s": 444.16,
+        "text": "by"
+      },
+      {
+        "start_s": 444.479,
+        "text": "nc"
+      },
+      {
+        "start_s": 444.96,
+        "text": "nd"
+      },
+      {
+        "start_s": 445.52,
+        "text": "license"
+      },
+      {
+        "start_s": 446.16,
+        "text": "the"
+      },
+      {
+        "start_s": 446.319,
+        "text": "more"
+      },
+      {
+        "start_s": 446.72,
+        "text": "restrictive"
+      },
+      {
+        "start_s": 447.36,
+        "text": "one"
+      },
+      {
+        "start_s": 449.28,
+        "text": "for"
+      },
+      {
+        "start_s": 449.44,
+        "text": "my"
+      },
+      {
+        "start_s": 449.84,
+        "text": "first"
+      },
+      {
+        "start_s": 450.319,
+        "text": "reuse"
+      },
+      {
+        "start_s": 450.72,
+        "text": "case"
+      },
+      {
+        "start_s": 451.12,
+        "text": "i"
+      },
+      {
+        "start_s": 451.28,
+        "text": "want"
+      },
+      {
+        "start_s": 451.44,
+        "text": "to"
+      },
+      {
+        "start_s": 451.599,
+        "text": "reuse"
+      },
+      {
+        "start_s": 451.919,
+        "text": "a"
+      },
+      {
+        "start_s": 452.0,
+        "text": "figure"
+      },
+      {
+        "start_s": 452.4,
+        "text": "in"
+      },
+      {
+        "start_s": 452.56,
+        "text": "a"
+      },
+      {
+        "start_s": 452.639,
+        "text": "conference"
+      },
+      {
+        "start_s": 454.08,
+        "text": "if"
+      },
+      {
+        "start_s": 454.24,
+        "text": "i"
+      },
+      {
+        "start_s": 454.479,
+        "text": "click"
+      },
+      {
+        "start_s": 454.88,
+        "text": "here"
+      },
+      {
+        "start_s": 455.84,
+        "text": "on"
+      },
+      {
+        "start_s": 456.08,
+        "text": "this"
+      },
+      {
+        "start_s": 456.319,
+        "text": "link"
+      },
+      {
+        "start_s": 456.639,
+        "text": "get"
+      },
+      {
+        "start_s": 456.88,
+        "text": "rights"
+      },
+      {
+        "start_s": 457.199,
+        "text": "and"
+      },
+      {
+        "start_s": 457.28,
+        "text": "content"
+      },
+      {
+        "start_s": 458.16,
+        "text": "i"
+      },
+      {
+        "start_s": 458.4,
+        "text": "will"
+      },
+      {
+        "start_s": 458.639,
+        "text": "get"
+      },
+      {
+        "start_s": 459.039,
+        "text": "this"
+      },
+      {
+        "start_s": 459.44,
+        "text": "form"
+      },
+      {
+        "start_s": 459.84,
+        "text": "again"
+      },
+      {
+        "start_s": 461.12,
+        "text": "and"
+      },
+      {
+        "start_s": 462.24,
+        "text": "if"
+      },
+      {
+        "start_s": 462.479,
+        "text": "i"
+      },
+      {
+        "start_s": 462.639,
+        "text": "click"
+      },
+      {
+        "start_s": 463.039,
+        "text": "on"
+      },
+      {
+        "start_s": 463.44,
+        "text": "quick"
+      },
+      {
+        "start_s": 464.16,
+        "text": "price"
+      },
+      {
+        "start_s": 464.639,
+        "text": "i"
+      },
+      {
+        "start_s": 464.8,
+        "text": "will"
+      },
+      {
+        "start_s": 465.039,
+        "text": "get"
+      },
+      {
+        "start_s": 465.36,
+        "text": "this"
+      },
+      {
+        "start_s": 465.68,
+        "text": "message"
+      },
+      {
+        "start_s": 467.44,
+        "text": "so"
+      },
+      {
+        "start_s": 468.0,
+        "text": "there"
+      },
+      {
+        "start_s": 468.24,
+        "text": "is"
+      },
+      {
+        "start_s": 468.479,
+        "text": "no"
+      },
+      {
+        "start_s": 468.759,
+        "text": "authorization"
+      },
+      {
+        "start_s": 469.84,
+        "text": "to"
+      },
+      {
+        "start_s": 470.08,
+        "text": "request"
+      },
+      {
+        "start_s": 470.879,
+        "text": "for"
+      },
+      {
+        "start_s": 471.28,
+        "text": "this"
+      },
+      {
+        "start_s": 471.68,
+        "text": "reuse"
+      },
+      {
+        "start_s": 472.08,
+        "text": "case"
+      },
+      {
+        "start_s": 472.8,
+        "text": "because"
+      },
+      {
+        "start_s": 473.44,
+        "text": "of"
+      },
+      {
+        "start_s": 473.68,
+        "text": "the"
+      },
+      {
+        "start_s": 473.84,
+        "text": "ccbi"
+      },
+      {
+        "start_s": 474.479,
+        "text": "and"
+      },
+      {
+        "start_s": 474.639,
+        "text": "cnd"
+      },
+      {
+        "start_s": 475.52,
+        "text": "license"
+      },
+      {
+        "start_s": 477.599,
+        "text": "for"
+      },
+      {
+        "start_s": 477.759,
+        "text": "my"
+      },
+      {
+        "start_s": 478.0,
+        "text": "second"
+      },
+      {
+        "start_s": 478.56,
+        "text": "reuse"
+      },
+      {
+        "start_s": 478.96,
+        "text": "case"
+      },
+      {
+        "start_s": 479.36,
+        "text": "i"
+      },
+      {
+        "start_s": 479.599,
+        "text": "want"
+      },
+      {
+        "start_s": 479.759,
+        "text": "to"
+      },
+      {
+        "start_s": 479.919,
+        "text": "deposit"
+      },
+      {
+        "start_s": 480.72,
+        "text": "my"
+      },
+      {
+        "start_s": 481.84,
+        "text": "article"
+      },
+      {
+        "start_s": 482.72,
+        "text": "in"
+      },
+      {
+        "start_s": 483.039,
+        "text": "my"
+      },
+      {
+        "start_s": 483.199,
+        "text": "institutional"
+      },
+      {
+        "start_s": 483.84,
+        "text": "repository"
+      },
+      {
+        "start_s": 484.8,
+        "text": "i"
+      },
+      {
+        "start_s": 485.12,
+        "text": "also"
+      },
+      {
+        "start_s": 485.84,
+        "text": "can"
+      },
+      {
+        "start_s": 486.8,
+        "text": "use"
+      },
+      {
+        "start_s": 487.039,
+        "text": "the"
+      },
+      {
+        "start_s": 487.199,
+        "text": "form"
+      },
+      {
+        "start_s": 487.759,
+        "text": "or"
+      },
+      {
+        "start_s": 488.319,
+        "text": "check"
+      },
+      {
+        "start_s": 488.72,
+        "text": "the"
+      },
+      {
+        "start_s": 489.44,
+        "text": "publisher's"
+      },
+      {
+        "start_s": 490.08,
+        "text": "conditions"
+      },
+      {
+        "start_s": 490.8,
+        "text": "on"
+      },
+      {
+        "start_s": 491.039,
+        "text": "his"
+      },
+      {
+        "start_s": 491.199,
+        "text": "website"
+      },
+      {
+        "start_s": 492.319,
+        "text": "and"
+      },
+      {
+        "start_s": 492.56,
+        "text": "by"
+      },
+      {
+        "start_s": 492.8,
+        "text": "clicking"
+      },
+      {
+        "start_s": 493.28,
+        "text": "on"
+      },
+      {
+        "start_s": 493.52,
+        "text": "continue"
+      },
+      {
+        "start_s": 494.08,
+        "text": "or"
+      },
+      {
+        "start_s": 494.24,
+        "text": "quick"
+      },
+      {
+        "start_s": 494.56,
+        "text": "price"
+      },
+      {
+        "start_s": 494.879,
+        "text": "i"
+      },
+      {
+        "start_s": 495.039,
+        "text": "will"
+      },
+      {
+        "start_s": 495.28,
+        "text": "get"
+      },
+      {
+        "start_s": 495.44,
+        "text": "the"
+      },
+      {
+        "start_s": 495.68,
+        "text": "same"
+      },
+      {
+        "start_s": 495.919,
+        "text": "message"
+      },
+      {
+        "start_s": 496.479,
+        "text": "as"
+      },
+      {
+        "start_s": 496.879,
+        "text": "previous"
+      },
+      {
+        "start_s": 499.039,
+        "text": "i"
+      },
+      {
+        "start_s": 499.28,
+        "text": "am"
+      },
+      {
+        "start_s": 499.44,
+        "text": "authorized"
+      },
+      {
+        "start_s": 500.0,
+        "text": "to"
+      },
+      {
+        "start_s": 500.16,
+        "text": "deposit"
+      },
+      {
+        "start_s": 500.879,
+        "text": "my"
+      },
+      {
+        "start_s": 501.199,
+        "text": "article"
+      },
+      {
+        "start_s": 501.68,
+        "text": "because"
+      },
+      {
+        "start_s": 502.0,
+        "text": "it"
+      },
+      {
+        "start_s": 502.08,
+        "text": "is"
+      },
+      {
+        "start_s": 502.24,
+        "text": "an"
+      },
+      {
+        "start_s": 502.319,
+        "text": "open"
+      },
+      {
+        "start_s": 502.639,
+        "text": "access"
+      },
+      {
+        "start_s": 503.12,
+        "text": "article"
+      },
+      {
+        "start_s": 503.759,
+        "text": "and"
+      },
+      {
+        "start_s": 504.08,
+        "text": "institutional"
+      },
+      {
+        "start_s": 504.72,
+        "text": "repositories"
+      },
+      {
+        "start_s": 505.599,
+        "text": "are"
+      },
+      {
+        "start_s": 506.24,
+        "text": "non-for-profit"
+      },
+      {
+        "start_s": 508.879,
+        "text": "but"
+      },
+      {
+        "start_s": 509.44,
+        "text": "for"
+      },
+      {
+        "start_s": 509.68,
+        "text": "my"
+      },
+      {
+        "start_s": 510.08,
+        "text": "third"
+      },
+      {
+        "start_s": 510.479,
+        "text": "we"
+      },
+      {
+        "start_s": 510.639,
+        "text": "use"
+      },
+      {
+        "start_s": 510.879,
+        "text": "case"
+      },
+      {
+        "start_s": 511.28,
+        "text": "i"
+      },
+      {
+        "start_s": 511.44,
+        "text": "want"
+      },
+      {
+        "start_s": 511.599,
+        "text": "to"
+      },
+      {
+        "start_s": 511.759,
+        "text": "reuse"
+      },
+      {
+        "start_s": 512.24,
+        "text": "figure"
+      },
+      {
+        "start_s": 513.44,
+        "text": "in"
+      },
+      {
+        "start_s": 514.0,
+        "text": "a"
+      },
+      {
+        "start_s": 514.479,
+        "text": "new"
+      },
+      {
+        "start_s": 515.279,
+        "text": "article"
+      },
+      {
+        "start_s": 516.0,
+        "text": "with"
+      },
+      {
+        "start_s": 516.24,
+        "text": "a"
+      },
+      {
+        "start_s": 516.32,
+        "text": "commercial"
+      },
+      {
+        "start_s": 516.959,
+        "text": "publisher"
+      },
+      {
+        "start_s": 518.159,
+        "text": "here"
+      },
+      {
+        "start_s": 519.12,
+        "text": "by"
+      },
+      {
+        "start_s": 519.44,
+        "text": "quick"
+      },
+      {
+        "start_s": 519.839,
+        "text": "clicking"
+      },
+      {
+        "start_s": 520.24,
+        "text": "on"
+      },
+      {
+        "start_s": 520.479,
+        "text": "quick"
+      },
+      {
+        "start_s": 520.719,
+        "text": "price"
+      },
+      {
+        "start_s": 521.36,
+        "text": "uh"
+      },
+      {
+        "start_s": 521.839,
+        "text": "it"
+      },
+      {
+        "start_s": 522.0,
+        "text": "is"
+      },
+      {
+        "start_s": 522.08,
+        "text": "free"
+      },
+      {
+        "start_s": 522.399,
+        "text": "of"
+      },
+      {
+        "start_s": 522.56,
+        "text": "charge"
+      },
+      {
+        "start_s": 522.959,
+        "text": "but"
+      },
+      {
+        "start_s": 523.44,
+        "text": "again"
+      },
+      {
+        "start_s": 524.0,
+        "text": "you"
+      },
+      {
+        "start_s": 524.24,
+        "text": "are"
+      },
+      {
+        "start_s": 524.399,
+        "text": "required"
+      },
+      {
+        "start_s": 524.88,
+        "text": "to"
+      },
+      {
+        "start_s": 525.12,
+        "text": "obtain"
+      },
+      {
+        "start_s": 525.519,
+        "text": "a"
+      },
+      {
+        "start_s": 525.68,
+        "text": "license"
+      },
+      {
+        "start_s": 526.48,
+        "text": "so"
+      },
+      {
+        "start_s": 526.88,
+        "text": "the"
+      },
+      {
+        "start_s": 527.04,
+        "text": "permission"
+      },
+      {
+        "start_s": 527.76,
+        "text": "is"
+      },
+      {
+        "start_s": 528.72,
+        "text": "mandatory"
+      },
+      {
+        "start_s": 529.6,
+        "text": "for"
+      },
+      {
+        "start_s": 530.08,
+        "text": "this"
+      },
+      {
+        "start_s": 530.399,
+        "text": "reuse"
+      },
+      {
+        "start_s": 530.8,
+        "text": "case"
+      },
+      {
+        "start_s": 532.399,
+        "text": "and"
+      },
+      {
+        "start_s": 532.64,
+        "text": "with"
+      },
+      {
+        "start_s": 532.959,
+        "text": "my"
+      },
+      {
+        "start_s": 533.279,
+        "text": "third"
+      },
+      {
+        "start_s": 533.68,
+        "text": "article"
+      },
+      {
+        "start_s": 534.88,
+        "text": "uh"
+      },
+      {
+        "start_s": 535.36,
+        "text": "here"
+      },
+      {
+        "start_s": 536.08,
+        "text": "is"
+      },
+      {
+        "start_s": 536.32,
+        "text": "my"
+      },
+      {
+        "start_s": 536.56,
+        "text": "third"
+      },
+      {
+        "start_s": 536.88,
+        "text": "article"
+      },
+      {
+        "start_s": 537.279,
+        "text": "as"
+      },
+      {
+        "start_s": 537.44,
+        "text": "you"
+      },
+      {
+        "start_s": 537.519,
+        "text": "can"
+      },
+      {
+        "start_s": 537.76,
+        "text": "see"
+      },
+      {
+        "start_s": 538.0,
+        "text": "it"
+      },
+      {
+        "start_s": 538.16,
+        "text": "is"
+      },
+      {
+        "start_s": 538.24,
+        "text": "an"
+      },
+      {
+        "start_s": 538.48,
+        "text": "open"
+      },
+      {
+        "start_s": 538.8,
+        "text": "access"
+      },
+      {
+        "start_s": 539.2,
+        "text": "article"
+      },
+      {
+        "start_s": 540.32,
+        "text": "and"
+      },
+      {
+        "start_s": 540.72,
+        "text": "if"
+      },
+      {
+        "start_s": 540.959,
+        "text": "you"
+      },
+      {
+        "start_s": 541.279,
+        "text": "check"
+      },
+      {
+        "start_s": 541.76,
+        "text": "the"
+      },
+      {
+        "start_s": 541.92,
+        "text": "license"
+      },
+      {
+        "start_s": 543.44,
+        "text": "here"
+      },
+      {
+        "start_s": 543.76,
+        "text": "is"
+      },
+      {
+        "start_s": 544.16,
+        "text": "the"
+      },
+      {
+        "start_s": 544.56,
+        "text": "license"
+      },
+      {
+        "start_s": 545.2,
+        "text": "reference"
+      },
+      {
+        "start_s": 546.32,
+        "text": "you"
+      },
+      {
+        "start_s": 546.48,
+        "text": "can"
+      },
+      {
+        "start_s": 546.64,
+        "text": "see"
+      },
+      {
+        "start_s": 546.959,
+        "text": "that"
+      },
+      {
+        "start_s": 547.36,
+        "text": "this"
+      },
+      {
+        "start_s": 547.68,
+        "text": "article"
+      },
+      {
+        "start_s": 548.24,
+        "text": "is"
+      },
+      {
+        "start_s": 548.399,
+        "text": "under"
+      },
+      {
+        "start_s": 548.88,
+        "text": "the"
+      },
+      {
+        "start_s": 549.36,
+        "text": "cc"
+      },
+      {
+        "start_s": 549.76,
+        "text": "by"
+      },
+      {
+        "start_s": 550.32,
+        "text": "license"
+      },
+      {
+        "start_s": 550.88,
+        "text": "so"
+      },
+      {
+        "start_s": 551.12,
+        "text": "it"
+      },
+      {
+        "start_s": 551.279,
+        "text": "means"
+      },
+      {
+        "start_s": 551.519,
+        "text": "that"
+      },
+      {
+        "start_s": 551.839,
+        "text": "my"
+      },
+      {
+        "start_s": 552.24,
+        "text": "three"
+      },
+      {
+        "start_s": 552.8,
+        "text": "reuse"
+      },
+      {
+        "start_s": 553.279,
+        "text": "cases"
+      },
+      {
+        "start_s": 553.92,
+        "text": "are"
+      },
+      {
+        "start_s": 554.24,
+        "text": "a"
+      },
+      {
+        "start_s": 554.399,
+        "text": "load"
+      },
+      {
+        "start_s": 554.88,
+        "text": "without"
+      },
+      {
+        "start_s": 555.6,
+        "text": "permission"
+      },
+      {
+        "start_s": 556.32,
+        "text": "in"
+      },
+      {
+        "start_s": 556.399,
+        "text": "this"
+      },
+      {
+        "start_s": 556.64,
+        "text": "case"
+      },
+      {
+        "start_s": 558.88,
+        "text": "what"
+      },
+      {
+        "start_s": 559.04,
+        "text": "does"
+      },
+      {
+        "start_s": 559.2,
+        "text": "it"
+      },
+      {
+        "start_s": 559.279,
+        "text": "mean"
+      },
+      {
+        "start_s": 559.519,
+        "text": "concretely"
+      },
+      {
+        "start_s": 561.04,
+        "text": "that"
+      },
+      {
+        "start_s": 561.68,
+        "text": "as"
+      },
+      {
+        "start_s": 562.0,
+        "text": "users"
+      },
+      {
+        "start_s": 563.92,
+        "text": "you"
+      },
+      {
+        "start_s": 564.399,
+        "text": "can"
+      },
+      {
+        "start_s": 564.959,
+        "text": "use"
+      },
+      {
+        "start_s": 565.839,
+        "text": "work"
+      },
+      {
+        "start_s": 568.08,
+        "text": "without"
+      },
+      {
+        "start_s": 568.56,
+        "text": "cc"
+      },
+      {
+        "start_s": 568.88,
+        "text": "license"
+      },
+      {
+        "start_s": 569.44,
+        "text": "but"
+      },
+      {
+        "start_s": 570.64,
+        "text": "they"
+      },
+      {
+        "start_s": 570.88,
+        "text": "can"
+      },
+      {
+        "start_s": 571.12,
+        "text": "be"
+      },
+      {
+        "start_s": 571.279,
+        "text": "reused"
+      },
+      {
+        "start_s": 571.839,
+        "text": "with"
+      },
+      {
+        "start_s": 572.08,
+        "text": "explicit"
+      },
+      {
+        "start_s": 572.72,
+        "text": "permission"
+      },
+      {
+        "start_s": 573.6,
+        "text": "only"
+      },
+      {
+        "start_s": 574.88,
+        "text": "from"
+      },
+      {
+        "start_s": 575.12,
+        "text": "the"
+      },
+      {
+        "start_s": 575.2,
+        "text": "copyright"
+      },
+      {
+        "start_s": 575.839,
+        "text": "order"
+      },
+      {
+        "start_s": 576.72,
+        "text": "and"
+      },
+      {
+        "start_s": 576.959,
+        "text": "sometimes"
+      },
+      {
+        "start_s": 577.44,
+        "text": "this"
+      },
+      {
+        "start_s": 577.68,
+        "text": "permission"
+      },
+      {
+        "start_s": 578.16,
+        "text": "will"
+      },
+      {
+        "start_s": 578.32,
+        "text": "not"
+      },
+      {
+        "start_s": 578.48,
+        "text": "be"
+      },
+      {
+        "start_s": 578.64,
+        "text": "granted"
+      },
+      {
+        "start_s": 579.12,
+        "text": "for"
+      },
+      {
+        "start_s": 579.279,
+        "text": "free"
+      },
+      {
+        "start_s": 580.0,
+        "text": "whereas"
+      },
+      {
+        "start_s": 580.72,
+        "text": "works"
+      },
+      {
+        "start_s": 581.2,
+        "text": "published"
+      },
+      {
+        "start_s": 581.76,
+        "text": "with"
+      },
+      {
+        "start_s": 582.0,
+        "text": "cc"
+      },
+      {
+        "start_s": 582.399,
+        "text": "license"
+      },
+      {
+        "start_s": 582.959,
+        "text": "can"
+      },
+      {
+        "start_s": 583.2,
+        "text": "be"
+      },
+      {
+        "start_s": 583.36,
+        "text": "reused"
+      },
+      {
+        "start_s": 583.839,
+        "text": "without"
+      },
+      {
+        "start_s": 584.24,
+        "text": "permission"
+      },
+      {
+        "start_s": 585.279,
+        "text": "as"
+      },
+      {
+        "start_s": 585.519,
+        "text": "specified"
+      },
+      {
+        "start_s": 586.24,
+        "text": "in"
+      },
+      {
+        "start_s": 586.32,
+        "text": "the"
+      },
+      {
+        "start_s": 586.399,
+        "text": "license"
+      },
+      {
+        "start_s": 587.839,
+        "text": "and"
+      },
+      {
+        "start_s": 588.0,
+        "text": "as"
+      },
+      {
+        "start_s": 588.32,
+        "text": "authors"
+      },
+      {
+        "start_s": 589.12,
+        "text": "if"
+      },
+      {
+        "start_s": 589.36,
+        "text": "you"
+      },
+      {
+        "start_s": 589.519,
+        "text": "completion"
+      },
+      {
+        "start_s": 590.08,
+        "text": "open"
+      },
+      {
+        "start_s": 590.399,
+        "text": "access"
+      },
+      {
+        "start_s": 591.12,
+        "text": "you"
+      },
+      {
+        "start_s": 591.36,
+        "text": "can"
+      },
+      {
+        "start_s": 591.6,
+        "text": "choose"
+      },
+      {
+        "start_s": 592.0,
+        "text": "the"
+      },
+      {
+        "start_s": 592.24,
+        "text": "more"
+      },
+      {
+        "start_s": 592.64,
+        "text": "open"
+      },
+      {
+        "start_s": 593.04,
+        "text": "license"
+      },
+      {
+        "start_s": 594.16,
+        "text": "to"
+      },
+      {
+        "start_s": 594.32,
+        "text": "give"
+      },
+      {
+        "start_s": 594.56,
+        "text": "your"
+      },
+      {
+        "start_s": 594.72,
+        "text": "peers"
+      },
+      {
+        "start_s": 595.12,
+        "text": "the"
+      },
+      {
+        "start_s": 595.2,
+        "text": "opportunity"
+      },
+      {
+        "start_s": 595.839,
+        "text": "to"
+      },
+      {
+        "start_s": 596.0,
+        "text": "contribute"
+      },
+      {
+        "start_s": 596.88,
+        "text": "to"
+      },
+      {
+        "start_s": 597.04,
+        "text": "the"
+      },
+      {
+        "start_s": 597.2,
+        "text": "advancement"
+      },
+      {
+        "start_s": 597.76,
+        "text": "of"
+      },
+      {
+        "start_s": 597.92,
+        "text": "knowledge"
+      },
+      {
+        "start_s": 598.64,
+        "text": "reusing"
+      },
+      {
+        "start_s": 599.36,
+        "text": "and"
+      },
+      {
+        "start_s": 599.519,
+        "text": "adapting"
+      },
+      {
+        "start_s": 600.0,
+        "text": "your"
+      },
+      {
+        "start_s": 600.24,
+        "text": "material"
+      },
+      {
+        "start_s": 601.04,
+        "text": "without"
+      },
+      {
+        "start_s": 601.68,
+        "text": "barriers"
+      },
+      {
+        "start_s": 603.12,
+        "text": "and"
+      },
+      {
+        "start_s": 603.279,
+        "text": "you"
+      },
+      {
+        "start_s": 603.36,
+        "text": "can"
+      },
+      {
+        "start_s": 603.519,
+        "text": "also"
+      },
+      {
+        "start_s": 603.839,
+        "text": "be"
+      },
+      {
+        "start_s": 604.0,
+        "text": "a"
+      },
+      {
+        "start_s": 604.079,
+        "text": "future"
+      },
+      {
+        "start_s": 604.48,
+        "text": "re-user"
+      },
+      {
+        "start_s": 605.04,
+        "text": "of"
+      },
+      {
+        "start_s": 605.2,
+        "text": "your"
+      },
+      {
+        "start_s": 605.44,
+        "text": "own"
+      },
+      {
+        "start_s": 605.68,
+        "text": "content"
+      },
+      {
+        "start_s": 606.079,
+        "text": "so"
+      },
+      {
+        "start_s": 606.32,
+        "text": "do"
+      },
+      {
+        "start_s": 606.48,
+        "text": "not"
+      },
+      {
+        "start_s": 606.64,
+        "text": "block"
+      },
+      {
+        "start_s": 606.959,
+        "text": "yourself"
+      },
+      {
+        "start_s": 609.92,
+        "text": "how"
+      },
+      {
+        "start_s": 610.16,
+        "text": "to"
+      },
+      {
+        "start_s": 610.32,
+        "text": "attribute"
+      },
+      {
+        "start_s": 610.8,
+        "text": "a"
+      },
+      {
+        "start_s": 610.88,
+        "text": "creative"
+      },
+      {
+        "start_s": 611.44,
+        "text": "commons"
+      },
+      {
+        "start_s": 612.079,
+        "text": "license"
+      },
+      {
+        "start_s": 612.8,
+        "text": "to"
+      },
+      {
+        "start_s": 613.12,
+        "text": "a"
+      },
+      {
+        "start_s": 613.279,
+        "text": "work"
+      },
+      {
+        "start_s": 614.399,
+        "text": "all"
+      },
+      {
+        "start_s": 614.64,
+        "text": "co-authors"
+      },
+      {
+        "start_s": 615.36,
+        "text": "must"
+      },
+      {
+        "start_s": 615.68,
+        "text": "agree"
+      },
+      {
+        "start_s": 616.0,
+        "text": "to"
+      },
+      {
+        "start_s": 616.16,
+        "text": "apply"
+      },
+      {
+        "start_s": 616.64,
+        "text": "a"
+      },
+      {
+        "start_s": 616.8,
+        "text": "cc"
+      },
+      {
+        "start_s": 617.12,
+        "text": "license"
+      },
+      {
+        "start_s": 618.56,
+        "text": "if"
+      },
+      {
+        "start_s": 618.72,
+        "text": "you"
+      },
+      {
+        "start_s": 618.88,
+        "text": "publish"
+      },
+      {
+        "start_s": 619.44,
+        "text": "in"
+      },
+      {
+        "start_s": 619.6,
+        "text": "an"
+      },
+      {
+        "start_s": 619.76,
+        "text": "open"
+      },
+      {
+        "start_s": 620.079,
+        "text": "access"
+      },
+      {
+        "start_s": 620.399,
+        "text": "journal"
+      },
+      {
+        "start_s": 621.12,
+        "text": "publishers"
+      },
+      {
+        "start_s": 622.16,
+        "text": "will"
+      },
+      {
+        "start_s": 622.48,
+        "text": "generally"
+      },
+      {
+        "start_s": 623.12,
+        "text": "do"
+      },
+      {
+        "start_s": 623.44,
+        "text": "the"
+      },
+      {
+        "start_s": 623.6,
+        "text": "necessary"
+      },
+      {
+        "start_s": 624.24,
+        "text": "for"
+      },
+      {
+        "start_s": 624.399,
+        "text": "you"
+      },
+      {
+        "start_s": 625.279,
+        "text": "and"
+      },
+      {
+        "start_s": 625.519,
+        "text": "for"
+      },
+      {
+        "start_s": 625.76,
+        "text": "all"
+      },
+      {
+        "start_s": 626.24,
+        "text": "publication"
+      },
+      {
+        "start_s": 627.2,
+        "text": "made"
+      },
+      {
+        "start_s": 627.519,
+        "text": "by"
+      },
+      {
+        "start_s": 627.76,
+        "text": "yourself"
+      },
+      {
+        "start_s": 629.279,
+        "text": "works"
+      },
+      {
+        "start_s": 629.68,
+        "text": "and"
+      },
+      {
+        "start_s": 629.839,
+        "text": "data"
+      },
+      {
+        "start_s": 630.32,
+        "text": "without"
+      },
+      {
+        "start_s": 630.839,
+        "text": "publishers"
+      },
+      {
+        "start_s": 631.92,
+        "text": "you"
+      },
+      {
+        "start_s": 632.079,
+        "text": "can"
+      },
+      {
+        "start_s": 632.32,
+        "text": "refer"
+      },
+      {
+        "start_s": 632.72,
+        "text": "to"
+      },
+      {
+        "start_s": 632.88,
+        "text": "the"
+      },
+      {
+        "start_s": 633.04,
+        "text": "license"
+      },
+      {
+        "start_s": 633.839,
+        "text": "in"
+      },
+      {
+        "start_s": 634.0,
+        "text": "the"
+      },
+      {
+        "start_s": 634.16,
+        "text": "work"
+      },
+      {
+        "start_s": 634.56,
+        "text": "itself"
+      },
+      {
+        "start_s": 635.68,
+        "text": "on"
+      },
+      {
+        "start_s": 635.839,
+        "text": "the"
+      },
+      {
+        "start_s": 636.0,
+        "text": "title"
+      },
+      {
+        "start_s": 636.399,
+        "text": "page"
+      },
+      {
+        "start_s": 636.72,
+        "text": "the"
+      },
+      {
+        "start_s": 636.88,
+        "text": "legal"
+      },
+      {
+        "start_s": 637.279,
+        "text": "section"
+      },
+      {
+        "start_s": 637.76,
+        "text": "or"
+      },
+      {
+        "start_s": 637.92,
+        "text": "the"
+      },
+      {
+        "start_s": 638.079,
+        "text": "readme"
+      },
+      {
+        "start_s": 639.36,
+        "text": "and"
+      },
+      {
+        "start_s": 639.6,
+        "text": "this"
+      },
+      {
+        "start_s": 639.92,
+        "text": "reference"
+      },
+      {
+        "start_s": 640.399,
+        "text": "to"
+      },
+      {
+        "start_s": 640.48,
+        "text": "the"
+      },
+      {
+        "start_s": 640.64,
+        "text": "license"
+      },
+      {
+        "start_s": 641.519,
+        "text": "should"
+      },
+      {
+        "start_s": 641.839,
+        "text": "contain"
+      },
+      {
+        "start_s": 642.399,
+        "text": "at"
+      },
+      {
+        "start_s": 642.56,
+        "text": "least"
+      },
+      {
+        "start_s": 642.88,
+        "text": "the"
+      },
+      {
+        "start_s": 643.12,
+        "text": "order's"
+      },
+      {
+        "start_s": 643.519,
+        "text": "names"
+      },
+      {
+        "start_s": 644.16,
+        "text": "the"
+      },
+      {
+        "start_s": 644.32,
+        "text": "publication"
+      },
+      {
+        "start_s": 645.04,
+        "text": "date"
+      },
+      {
+        "start_s": 645.44,
+        "text": "and"
+      },
+      {
+        "start_s": 645.6,
+        "text": "the"
+      },
+      {
+        "start_s": 645.76,
+        "text": "name"
+      },
+      {
+        "start_s": 646.079,
+        "text": "and"
+      },
+      {
+        "start_s": 646.24,
+        "text": "stable"
+      },
+      {
+        "start_s": 646.8,
+        "text": "url"
+      },
+      {
+        "start_s": 647.36,
+        "text": "of"
+      },
+      {
+        "start_s": 647.44,
+        "text": "the"
+      },
+      {
+        "start_s": 647.6,
+        "text": "license"
+      },
+      {
+        "start_s": 648.32,
+        "text": "plus"
+      },
+      {
+        "start_s": 648.72,
+        "text": "if"
+      },
+      {
+        "start_s": 648.88,
+        "text": "you"
+      },
+      {
+        "start_s": 648.959,
+        "text": "want"
+      },
+      {
+        "start_s": 649.36,
+        "text": "the"
+      },
+      {
+        "start_s": 649.44,
+        "text": "license"
+      },
+      {
+        "start_s": 650.16,
+        "text": "logo"
+      },
+      {
+        "start_s": 650.64,
+        "text": "that"
+      },
+      {
+        "start_s": 650.8,
+        "text": "you"
+      },
+      {
+        "start_s": 650.959,
+        "text": "can"
+      },
+      {
+        "start_s": 651.2,
+        "text": "find"
+      },
+      {
+        "start_s": 651.76,
+        "text": "on"
+      },
+      {
+        "start_s": 651.92,
+        "text": "the"
+      },
+      {
+        "start_s": 652.079,
+        "text": "creative"
+      },
+      {
+        "start_s": 652.64,
+        "text": "commons"
+      },
+      {
+        "start_s": 653.04,
+        "text": "foundation"
+      },
+      {
+        "start_s": 653.6,
+        "text": "website"
+      },
+      {
+        "start_s": 656.0,
+        "text": "here"
+      },
+      {
+        "start_s": 656.24,
+        "text": "is"
+      },
+      {
+        "start_s": 656.399,
+        "text": "an"
+      },
+      {
+        "start_s": 656.56,
+        "text": "example"
+      },
+      {
+        "start_s": 657.04,
+        "text": "that"
+      },
+      {
+        "start_s": 657.279,
+        "text": "you"
+      },
+      {
+        "start_s": 657.44,
+        "text": "can"
+      },
+      {
+        "start_s": 658.64,
+        "text": "use"
+      },
+      {
+        "start_s": 659.12,
+        "text": "to"
+      },
+      {
+        "start_s": 659.36,
+        "text": "apply"
+      },
+      {
+        "start_s": 659.839,
+        "text": "licenses"
+      },
+      {
+        "start_s": 660.48,
+        "text": "on"
+      },
+      {
+        "start_s": 660.64,
+        "text": "your"
+      },
+      {
+        "start_s": 660.8,
+        "text": "works"
+      },
+      {
+        "start_s": 663.44,
+        "text": "where"
+      },
+      {
+        "start_s": 663.68,
+        "text": "to"
+      },
+      {
+        "start_s": 663.839,
+        "text": "find"
+      },
+      {
+        "start_s": 664.079,
+        "text": "creative"
+      },
+      {
+        "start_s": 664.56,
+        "text": "commons"
+      },
+      {
+        "start_s": 665.04,
+        "text": "materials"
+      },
+      {
+        "start_s": 666.88,
+        "text": "scientific"
+      },
+      {
+        "start_s": 667.519,
+        "text": "articles"
+      },
+      {
+        "start_s": 668.0,
+        "text": "can"
+      },
+      {
+        "start_s": 668.16,
+        "text": "be"
+      },
+      {
+        "start_s": 668.399,
+        "text": "found"
+      },
+      {
+        "start_s": 668.8,
+        "text": "through"
+      },
+      {
+        "start_s": 669.12,
+        "text": "the"
+      },
+      {
+        "start_s": 669.36,
+        "text": "directory"
+      },
+      {
+        "start_s": 669.839,
+        "text": "of"
+      },
+      {
+        "start_s": 670.0,
+        "text": "open"
+      },
+      {
+        "start_s": 670.32,
+        "text": "access"
+      },
+      {
+        "start_s": 670.64,
+        "text": "journal"
+      },
+      {
+        "start_s": 671.12,
+        "text": "by"
+      },
+      {
+        "start_s": 671.36,
+        "text": "searching"
+      },
+      {
+        "start_s": 671.92,
+        "text": "articles"
+      },
+      {
+        "start_s": 673.279,
+        "text": "or"
+      },
+      {
+        "start_s": 673.519,
+        "text": "directly"
+      },
+      {
+        "start_s": 674.0,
+        "text": "on"
+      },
+      {
+        "start_s": 674.16,
+        "text": "publisher's"
+      },
+      {
+        "start_s": 674.72,
+        "text": "website"
+      },
+      {
+        "start_s": 675.68,
+        "text": "restricting"
+      },
+      {
+        "start_s": 676.24,
+        "text": "your"
+      },
+      {
+        "start_s": 676.48,
+        "text": "search"
+      },
+      {
+        "start_s": 676.8,
+        "text": "to"
+      },
+      {
+        "start_s": 677.04,
+        "text": "open"
+      },
+      {
+        "start_s": 677.44,
+        "text": "access"
+      },
+      {
+        "start_s": 677.839,
+        "text": "content"
+      },
+      {
+        "start_s": 678.399,
+        "text": "only"
+      },
+      {
+        "start_s": 679.92,
+        "text": "data"
+      },
+      {
+        "start_s": 680.48,
+        "text": "are"
+      },
+      {
+        "start_s": 680.72,
+        "text": "shared"
+      },
+      {
+        "start_s": 681.519,
+        "text": "with"
+      },
+      {
+        "start_s": 681.839,
+        "text": "many"
+      },
+      {
+        "start_s": 682.48,
+        "text": "free"
+      },
+      {
+        "start_s": 682.8,
+        "text": "licenses"
+      },
+      {
+        "start_s": 683.68,
+        "text": "in"
+      },
+      {
+        "start_s": 683.92,
+        "text": "data"
+      },
+      {
+        "start_s": 684.399,
+        "text": "repositories"
+      },
+      {
+        "start_s": 685.36,
+        "text": "like"
+      },
+      {
+        "start_s": 685.6,
+        "text": "triad"
+      },
+      {
+        "start_s": 686.079,
+        "text": "fixtures"
+      },
+      {
+        "start_s": 688.72,
+        "text": "and"
+      },
+      {
+        "start_s": 688.88,
+        "text": "for"
+      },
+      {
+        "start_s": 689.12,
+        "text": "images"
+      },
+      {
+        "start_s": 690.079,
+        "text": "they"
+      },
+      {
+        "start_s": 690.24,
+        "text": "are"
+      },
+      {
+        "start_s": 690.399,
+        "text": "specialized"
+      },
+      {
+        "start_s": 691.76,
+        "text": "specialized"
+      },
+      {
+        "start_s": 692.399,
+        "text": "websites"
+      },
+      {
+        "start_s": 693.2,
+        "text": "sorry"
+      },
+      {
+        "start_s": 693.92,
+        "text": "like"
+      },
+      {
+        "start_s": 694.16,
+        "text": "cc"
+      },
+      {
+        "start_s": 694.56,
+        "text": "search"
+      },
+      {
+        "start_s": 694.959,
+        "text": "and"
+      },
+      {
+        "start_s": 695.36,
+        "text": "google"
+      },
+      {
+        "start_s": 695.839,
+        "text": "images"
+      },
+      {
+        "start_s": 696.88,
+        "text": "also"
+      },
+      {
+        "start_s": 697.519,
+        "text": "offer"
+      },
+      {
+        "start_s": 698.64,
+        "text": "an"
+      },
+      {
+        "start_s": 698.88,
+        "text": "option"
+      },
+      {
+        "start_s": 699.2,
+        "text": "to"
+      },
+      {
+        "start_s": 699.44,
+        "text": "search"
+      },
+      {
+        "start_s": 700.0,
+        "text": "only"
+      },
+      {
+        "start_s": 700.48,
+        "text": "cc"
+      },
+      {
+        "start_s": 700.959,
+        "text": "licensed"
+      },
+      {
+        "start_s": 701.839,
+        "text": "content"
+      },
+      {
+        "start_s": 704.48,
+        "text": "so"
+      },
+      {
+        "start_s": 704.72,
+        "text": "thank"
+      },
+      {
+        "start_s": 704.959,
+        "text": "you"
+      },
+      {
+        "start_s": 705.12,
+        "text": "for"
+      },
+      {
+        "start_s": 705.279,
+        "text": "your"
+      },
+      {
+        "start_s": 705.519,
+        "text": "attention"
+      },
+      {
+        "start_s": 706.32,
+        "text": "and"
+      },
+      {
+        "start_s": 706.64,
+        "text": "i"
+      },
+      {
+        "start_s": 707.36,
+        "text": "am"
+      },
+      {
+        "start_s": 707.519,
+        "text": "at"
+      },
+      {
+        "start_s": 707.68,
+        "text": "your"
+      },
+      {
+        "start_s": 707.839,
+        "text": "disposal"
+      },
+      {
+        "start_s": 708.48,
+        "text": "for"
+      },
+      {
+        "start_s": 708.8,
+        "text": "your"
+      },
+      {
+        "start_s": 714.839,
+        "text": "question"
+      }
+    ]
+  }
+}

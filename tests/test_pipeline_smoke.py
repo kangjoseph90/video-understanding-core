@@ -252,3 +252,122 @@ def test_runtime_ocr_failure_keeps_audio_and_closes_the_worker(tmp_path: Path) -
         e["event"] == "ocr_failed" and "worker stopped" in e["result_summary"]["error"]
         for e in events
     )
+
+
+def write_captions(video: Path, *cues: tuple[float, str], kind: str = "manual") -> None:
+    from vuc.captions import CaptionCue, content_hash
+
+    rows = tuple(CaptionCue(at, text) for at, text in cues)
+    video.with_suffix(".subs.json").write_text(
+        json.dumps(
+            {
+                "audio_language": "en",
+                "track": {
+                    "language": "en",
+                    "kind": kind,
+                    "format": "json3",
+                    "content_sha256": content_hash(rows),
+                    "has_word_timing": True,
+                    "cues": [cue.to_dict() for cue in rows],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_a_caption_track_corrects_the_transcript_without_a_sidecar_of_its_own(
+    tmp_path: Path,
+) -> None:
+    video = make_video(tmp_path / "sample.mp4")
+    write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
+    config = load_config(write_config(tmp_path))
+
+    index, cache, _, _ = index_video(
+        video,
+        config,
+        transcriber=StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
+        vad=StubVAD([(2.4, 9.6)]),
+        event_tagger=StubTagger(),
+        ocr_engine=StubOCREngine(),
+    )
+
+    assert index.captions["verdict"] == "speech_transcript"
+    assert "corrected spoken words" in cache.audio_index_path.read_text(encoding="utf-8")
+
+
+def test_no_caption_sidecar_leaves_the_index_exactly_as_it_was(tmp_path: Path) -> None:
+    """The correction is optional; losing it must cost nothing else."""
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    with_track = tmp_path / "with_track"
+    with_track.mkdir()
+
+    outputs = []
+    for directory in (plain, with_track):
+        video = make_video(directory / "sample.mp4")
+        if directory is with_track:
+            write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
+        config = load_config(write_config(directory))
+        _, cache, _, _ = index_video(
+            video,
+            config,
+            transcriber=StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
+            vad=StubVAD([(2.4, 9.6)]),
+            event_tagger=StubTagger(),
+            ocr_engine=StubOCREngine(),
+        )
+        outputs.append(cache.audio_index_path.read_text(encoding="utf-8"))
+
+    assert "spoken words" in outputs[0]
+    assert "corrected" not in outputs[0]
+    assert outputs[0] != outputs[1]
+
+
+def test_a_track_that_changes_rebuilds_rather_than_serving_the_old_index(
+    tmp_path: Path,
+) -> None:
+    video = make_video(tmp_path / "sample.mp4")
+    write_captions(video, (3.0, "first"), (4.0, "spoken"), (5.0, "words"))
+    config = load_config(write_config(tmp_path))
+    common = {
+        "transcriber": StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
+        "vad": StubVAD([(2.4, 9.6)]),
+        "event_tagger": StubTagger(),
+        "ocr_engine": StubOCREngine(),
+    }
+    index_video(video, config, **common)
+
+    write_captions(video, (3.0, "second"), (4.0, "spoken"), (5.0, "words"))
+    _, cache, cached, _ = index_video(video, config, **common)
+
+    assert cached is False
+    assert "second spoken words" in cache.audio_index_path.read_text(encoding="utf-8")
+
+
+def test_the_prompt_never_says_where_a_line_came_from(tmp_path: Path) -> None:
+    """Provenance lives in index.json and the trace, never in what the model reads."""
+    from vuc.agent import build_prompt_body
+
+    video = make_video(tmp_path / "sample.mp4")
+    write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
+    config = load_config(write_config(tmp_path))
+    index, _, _, _ = index_video(
+        video,
+        config,
+        transcriber=StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
+        vad=StubVAD([(2.4, 9.6)]),
+        event_tagger=StubTagger(),
+        ocr_engine=StubOCREngine(),
+    )
+
+    prompt = build_prompt_body(
+        "summarise",
+        index.video.duration_s,
+        audio_index=render_audio_index(index.audio.segments),
+        text_index="",
+    )
+
+    assert "corrected" in prompt
+    for leak in ("speech_transcript", "hardsub", "caption", "manual", "vad_overlap", "sensevoice"):
+        assert leak not in prompt.casefold()
