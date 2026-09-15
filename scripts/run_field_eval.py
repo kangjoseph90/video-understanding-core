@@ -65,6 +65,13 @@ def main() -> int:
         nargs="*",
         help="explicit video files, overriding manifest lookup",
     )
+    parser.add_argument(
+        "--modes",
+        nargs="+",
+        choices=MODES,
+        default=list(MODES),
+        help="modes to run (default: all three)",
+    )
     args = parser.parse_args()
 
     base = load_config(args.config)
@@ -81,10 +88,11 @@ def main() -> int:
                 continue
             targets.append((entry["category"], entry["path"]))
 
-    print(f"{len(targets)} videos x {len(MODES)} modes = {len(targets) * len(MODES)} runs\n")
+    total_runs = len(targets) * len(args.modes)
+    print(f"{len(targets)} videos x {len(args.modes)} modes = {total_runs} runs\n")
     failures = 0
     for label, video in targets:
-        for mode in MODES:
+        for mode in args.modes:
             config = replace(base, run=replace(base.run, mode=mode))
             started = time.monotonic()
             print(f"--> {label} / {mode} ({video.name})", flush=True)
