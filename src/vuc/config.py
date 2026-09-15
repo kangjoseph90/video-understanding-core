@@ -164,6 +164,8 @@ class CaptionsConfig:
     scope_ratio_min: float = 0.8
     scope_ratio_max: float = 1.25
     text_match_min: float = 0.55
+    window_s: float = 30.0
+    window_min_cues: int = 3
 
     def attribution(self) -> Any:
         """The runtime settings object the fusion pass takes.
@@ -182,6 +184,8 @@ class CaptionsConfig:
             scope_ratio_min=self.scope_ratio_min,
             scope_ratio_max=self.scope_ratio_max,
             text_match_min=self.text_match_min,
+            window_s=self.window_s,
+            window_min_cues=self.window_min_cues,
         )
 
 
@@ -432,6 +436,8 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             scope_ratio_min=float(captions.get("scope_ratio_min", 0.8)),
             scope_ratio_max=float(captions.get("scope_ratio_max", 1.25)),
             text_match_min=float(captions.get("text_match_min", 0.55)),
+            window_s=float(captions.get("window_s", 30.0)),
+            window_min_cues=int(captions.get("window_min_cues", 3)),
         ),
         frames=FramesConfig(
             index_montage_n=int(frames["index_montage_n"]),

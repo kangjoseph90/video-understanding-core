@@ -97,6 +97,9 @@ captions:
   scope_ratio_min: 0.8
   scope_ratio_max: 1.25
   text_match_min: 0.55
+  # Each caption line is routed over its neighbourhood, not the whole track.
+  window_s: 30.0
+  window_min_cues: 3
 
 frames:
   index_montage_n: 3

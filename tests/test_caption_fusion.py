@@ -1,20 +1,37 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from vuc.caption_fusion import (
-    HARDSUB_COPY,
+    AUDIO,
+    DROP,
+    MIXED,
     REJECTED_LANGUAGE,
     REJECTED_UNALIGNED,
-    SPEECH_TRANSCRIPT,
+    TEXT,
     AttributionConfig,
-    assign_tokens,
-    attribute,
+    assign_cues,
+    caption_spans,
     fuse_audio_index,
     fuse_region,
     fuse_text_index,
+    overlay_captions,
+    placement_times,
+    route_cues,
     script_ratio,
 )
 from vuc.captions import CaptionCue, CaptionTrack
-from vuc.models import NON_SPEECH, SPEECH, Segment, TextCue
+from vuc.models import (
+    NON_SPEECH,
+    SPEECH,
+    AudioIndex,
+    Segment,
+    TextCue,
+    TextIndex,
+    VideoIndex,
+    VideoMetadata,
+    VisualIndex,
+)
 
 CONFIG = AttributionConfig()
 
@@ -38,6 +55,30 @@ def cue(start: float, end: float, text: str) -> TextCue:
     return TextCue(start=start, end=end, text=text, position="bottom center", size="medium")
 
 
+
+
+def make_index(segments=(), cues=(), duration=600.0) -> VideoIndex:
+    return VideoIndex(
+        schema_version=5,
+        video=VideoMetadata(path="/tmp/v.mp4", sha256="h", duration_s=duration, size_bytes=1),
+        audio=AudioIndex(tuple(segments)),
+        text=TextIndex(tuple(cues)),
+        visual=VisualIndex(),
+        created_at="now",
+    )
+
+
+def overlay(segments, cues, track, *, language=None, config=CONFIG):
+    return overlay_captions(
+        make_index(segments, cues), track, audio_language=language, config=config
+    )
+
+
+def place(track):
+    spans = caption_spans(track)
+    return track.cues, placement_times(track.cues, spans, word_timed=track.has_word_timing), spans
+
+
 # ------------------------------------------------------------------- axes
 
 
@@ -53,114 +94,139 @@ def test_latin_languages_have_no_script_signal_and_say_so() -> None:
     assert script_ratio("Bonjour", "fr") is None
 
 
-def test_a_track_in_the_wrong_script_is_rejected_before_timing_is_considered() -> None:
+def test_a_track_in_the_wrong_script_is_rejected_before_anything_is_routed() -> None:
     english = track((1.0, "Hello"), (2.0, "everyone"), language="ko")
 
-    result = attribute(
-        english,
-        audio_language="ko",
-        speech=[(0.0, 10.0)],
-        text_cues=(),
-        config=CONFIG,
+    result = overlay((speech(0.0, 10.0, "x"),), (), english, language="ko")
+
+    assert result.summary["verdict"] == REJECTED_LANGUAGE
+    assert result.summary["script_ratio"] == 0.0
+    assert result.summary["routing"] == {AUDIO: 0, TEXT: 0, DROP: 2}
+
+
+def test_a_translated_track_is_stopped_by_the_language_gate_not_by_routing() -> None:
+    """It is timed to the speech it translates, so every line looks like one."""
+    japanese_audio = (speech(0.0, 30.0, "何か"),)
+    english = track((1.0, "Hello everyone this is Akane"), language="ja", word_timing=False)
+
+    result = overlay(japanese_audio, (), english, language="ja")
+
+    assert result.summary["verdict"] == REJECTED_LANGUAGE
+    assert result.segments == japanese_audio
+
+
+# ---------------------------------------------------------------- routing
+
+
+def test_lines_over_speech_are_routed_to_the_transcript() -> None:
+    decisions = route_cues(
+        track((1.0, "hello"), (2.0, "everyone")), [(0.0, 10.0)], (), config=CONFIG
     )
 
-    assert result.verdict == REJECTED_LANGUAGE
-    assert result.script_ratio == 0.0
+    assert decisions == [AUDIO, AUDIO]
 
 
-def test_words_landing_in_speech_make_it_a_transcript() -> None:
-    result = attribute(
-        track((1.0, "hello"), (2.0, "everyone")),
-        audio_language="en",
-        speech=[(0.0, 10.0)],
-        text_cues=(),
-        config=CONFIG,
-    )
-
-    assert result.verdict == SPEECH_TRANSCRIPT
-    assert result.vad_overlap == 1.0
-
-
-def test_words_matching_the_screen_but_not_the_speech_make_it_a_hardsub_copy() -> None:
+def test_lines_matching_the_screen_but_not_the_speech_are_routed_to_the_text_index() -> None:
     text = "오늘도 새벽부터 편집하다가"
-    result = attribute(
+    decisions = route_cues(
         track((30.0, text), word_timing=False, language="ko"),
-        audio_language="ko",
-        speech=[(0.0, 5.0)],
-        text_cues=(cue(30.0, 34.0, text),),
+        [(0.0, 5.0)],
+        (cue(30.0, 34.0, text),),
         config=CONFIG,
     )
 
-    assert result.verdict == HARDSUB_COPY
-    assert result.vad_overlap == 0.0
-    assert result.ocr_match == 1.0
+    assert decisions == [TEXT]
 
 
-def test_a_lecturer_reading_their_slides_stays_a_transcript() -> None:
-    """The V axis decides first.
+def test_lines_matching_neither_observer_are_dropped() -> None:
+    decisions = route_cues(
+        track((500.0, "buy"), (501.0, "my"), (502.0, "merch")), [(0.0, 10.0)], (), config=CONFIG
+    )
 
-    A track that is both spoken and on screen must not be allowed to rewrite the
-    OCR rows: the speaker paraphrases the slide, and correcting screen text with
-    spoken paraphrase is the one thing the text index refuses to do. Measured at
-    O = 0.501 on the slide lecture.
+    assert decisions == [DROP, DROP, DROP]
+
+
+def test_a_lecturer_reading_their_slides_still_routes_to_the_transcript() -> None:
+    """Speech wins the line even when the same words are on the frame.
+
+    Correcting screen text with spoken paraphrase is the one thing the text
+    index refuses to do, and a slide lecture scores 0.50 on the OCR axis.
     """
     shared = "creative commons licenses"
-    result = attribute(
+    decisions = route_cues(
         track((1.0, shared), word_timing=False),
-        audio_language="en",
-        speech=[(0.0, 10.0)],
-        text_cues=(cue(0.0, 8.0, shared),),
+        [(0.0, 10.0)],
+        (cue(0.0, 8.0, shared),),
         config=CONFIG,
     )
 
-    assert result.vad_overlap >= CONFIG.vad_overlap_min
-    assert result.ocr_match >= CONFIG.ocr_match_min
-    assert result.verdict == SPEECH_TRANSCRIPT
+    assert decisions == [AUDIO]
 
 
-def test_a_track_matching_neither_observer_is_dropped() -> None:
-    result = attribute(
-        track((500.0, "buy"), (501.0, "my"), (502.0, "merch")),
-        audio_language="en",
-        speech=[(0.0, 10.0)],
-        text_cues=(),
-        config=CONFIG,
+def test_one_video_may_change_character_halfway_through() -> None:
+    """A whole-track verdict cannot describe this; the window can."""
+    narrated = tuple((float(t), "spoken words here") for t in range(5, 60, 5))
+    silent = tuple((float(t), "화면에 적힌 문장입니다") for t in range(200, 260, 5))
+    mixed = track(*narrated, *silent, word_timing=False, language="ko")
+    screen = tuple(
+        cue(float(t), float(t) + 4, "화면에 적힌 문장입니다") for t in range(200, 260, 5)
     )
 
-    assert result.verdict == REJECTED_UNALIGNED
+    decisions = route_cues(mixed, [(0.0, 100.0)], screen, config=CONFIG)
+
+    assert set(decisions[: len(narrated)]) == {AUDIO}
+    assert set(decisions[len(narrated) :]) == {TEXT}
 
 
-# --------------------------------------------------------------- assignment
+def test_the_window_is_not_delicate() -> None:
+    narrated = tuple((float(t), "spoken words here") for t in range(5, 60, 5))
+    silent = tuple((float(t), "화면에 적힌 문장입니다") for t in range(200, 260, 5))
+    mixed = track(*narrated, *silent, word_timing=False, language="ko")
+    screen = tuple(
+        cue(float(t), float(t) + 4, "화면에 적힌 문장입니다") for t in range(200, 260, 5)
+    )
+
+    for window_s in (10.0, 20.0, 30.0, 45.0, 60.0):
+        decisions = route_cues(
+            mixed, [(0.0, 100.0)], screen, config=replace(CONFIG, window_s=window_s)
+        )
+        assert decisions.count(AUDIO) == len(narrated), window_s
+        assert decisions.count(TEXT) == len(silent), window_s
 
 
-def test_every_token_lands_in_exactly_one_region_or_none() -> None:
-    regions = [(0.0, 10.0), (10.0, 20.0), (20.0, 30.0)]
-    tokens = ((9.9, "a"), (10.0, "b"), (10.1, "c"), (25.0, "d"))
-
-    buckets, dropped = assign_tokens(tokens, regions)
-
-    assert [len(bucket) for bucket in buckets] == [1, 2, 1]
-    assert dropped == []
-    assert sum(len(bucket) for bucket in buckets) + len(dropped) == len(tokens)
+# --------------------------------------------------------------- placement
 
 
-def test_tokens_outside_every_speech_region_are_dropped_not_duplicated() -> None:
-    """The VAD split is the spine; this pass does not move it."""
-    tokens = ((-1.0, "before"), (5.0, "in"), (99.0, "after"))
+def test_a_written_line_is_placed_at_its_middle() -> None:
+    written = track((0.0, "one two three"), (10.0, "four"), word_timing=False)
+    _, at, _ = place(written)
 
-    buckets, dropped = assign_tokens(tokens, [(0.0, 10.0)])
-
-    assert buckets == [["in"]]
-    assert dropped == ["before", "after"]
+    assert at[0] == 5.0
 
 
-def test_a_cue_spanning_a_boundary_splits_rather_than_repeating() -> None:
-    regions = [(0.0, 10.0), (10.0, 20.0)]
-    tokens = ((8.0, "one"), (9.5, "two"), (11.0, "three"), (12.0, "four"))
+def test_a_timed_word_is_placed_at_its_own_timestamp() -> None:
+    """The gap to the next word is mostly silence, not part of the word."""
+    spoken = track((3.92, "hello"), (5.20, "everyone"))
+    _, at, _ = place(spoken)
 
-    buckets, dropped = assign_tokens(tokens, regions)
+    assert at == [3.92, 5.20]
 
-    assert buckets == [["one", "two"], ["three", "four"]]
+
+def test_every_line_lands_in_exactly_one_region_or_none() -> None:
+    lines = (CaptionCue(1.0, "a"), CaptionCue(12.0, "b"), CaptionCue(99.0, "c"))
+    buckets, dropped = assign_cues(lines, [1.0, 12.0, 99.0], [(0.0, 10.0), (10.0, 20.0)])
+
+    assert [[c.text for c in b] for b in buckets] == [["a"], ["b"]]
+    assert [c.text for c in dropped] == ["c"]
+    assert sum(len(b) for b in buckets) + len(dropped) == len(lines)
+
+
+def test_a_line_is_never_split_across_two_regions() -> None:
+    """Splitting on token timings returned the halves as bare word lists."""
+    straddling = (CaptionCue(8.0, "a sentence that runs over the boundary"),)
+    buckets, dropped = assign_cues(straddling, [11.0], [(0.0, 10.0), (10.0, 20.0)])
+
+    assert [len(b) for b in buckets] == [0, 1]
     assert dropped == []
 
 
@@ -170,16 +236,37 @@ def test_a_cue_spanning_a_boundary_splits_rather_than_repeating() -> None:
 def test_where_the_captions_reach_the_captions_win() -> None:
     fused = fuse_region(
         "I'm Maya Rarick at Central Trovva",
-        ["I'm", "Maja", "Drabczyk", "at", "Centrum", "Cyfrowe"],
+        ["I'm Maja Drabczyk at Centrum Cyfrowe"],
         align_ratio_min=0.2,
     )
 
     assert fused == "I'm Maja Drabczyk at Centrum Cyfrowe"
 
 
+def test_punctuation_survives_the_correction() -> None:
+    """Rejoining tokens dropped every comma the caption and the ASR both had."""
+    fused = fuse_region(
+        "Hi everybody, spring has come.",
+        ["Hi, everybody, spring has come."],
+        align_ratio_min=0.2,
+    )
+
+    assert fused == "Hi, everybody, spring has come."
+
+
+def test_sound_and_speaker_annotations_do_not_become_transcript() -> None:
+    fused = fuse_region(
+        "Hi everybody spring has come",
+        ["- Hi, everybody, spring has come.", "(birds chirp)"],
+        align_ratio_min=0.2,
+    )
+
+    assert fused == "Hi, everybody, spring has come."
+
+
 def test_tokens_the_captions_omit_are_not_restored() -> None:
     """Restoring them measured worse than leaving the index alone entirely."""
-    fused = fuse_region("um so I think uh yes", ["so", "I", "think", "yes"], align_ratio_min=0.2)
+    fused = fuse_region("um so I think uh yes", ["so I think yes"], align_ratio_min=0.2)
 
     assert fused == "so I think yes"
 
@@ -189,14 +276,14 @@ def test_a_region_the_captions_do_not_reach_keeps_what_was_heard() -> None:
 
 
 def test_an_empty_transcript_is_recovered_from_the_captions() -> None:
-    assert fuse_region("", ["recovered", "words"], align_ratio_min=0.2) == "recovered words"
+    assert fuse_region("", ["recovered words"], align_ratio_min=0.2) == "recovered words"
 
 
 def test_two_accounts_that_do_not_resemble_each_other_are_left_alone() -> None:
     """Better an uncorrected region than one spliced into what neither said."""
     fused = fuse_region(
         "the quick brown fox jumps",
-        ["completely", "unrelated", "advertising", "copy"],
+        ["completely unrelated advertising copy"],
         align_ratio_min=0.2,
     )
 
@@ -208,8 +295,9 @@ def test_non_speech_regions_are_never_touched() -> None:
         speech(0.0, 5.0, "wrong words"),
         Segment(5.0, 10.0, "", "unknown", events=("music",), kind=NON_SPEECH),
     )
+    lines, at, _ = place(track((1.0, "right"), (2.0, "words")))
 
-    fused, stats = fuse_audio_index(segments, track((1.0, "right"), (2.0, "words")), config=CONFIG)
+    fused, stats = fuse_audio_index(segments, lines, at, config=CONFIG)
 
     assert fused[1] == segments[1]
     assert fused[0].text == "right words"
@@ -218,7 +306,9 @@ def test_non_speech_regions_are_never_touched() -> None:
 
 def test_fusion_preserves_every_field_but_the_text() -> None:
     original = Segment(0.0, 5.0, "old", "ko", emotion="happy", events=("laugh",), raw_text="raw")
-    fused, _ = fuse_audio_index((original,), track((1.0, "old"), (2.0, "new")), config=CONFIG)
+    lines, at, _ = place(track((1.0, "old"), (2.0, "new")))
+
+    fused, _ = fuse_audio_index((original,), lines, at, config=CONFIG)
 
     assert fused[0].text == "old new"
     assert fused[0].language == "ko"
@@ -229,9 +319,9 @@ def test_fusion_preserves_every_field_but_the_text() -> None:
 
 
 def test_a_recovered_empty_region_is_counted_as_such() -> None:
-    fused, stats = fuse_audio_index(
-        (speech(0.0, 5.0, ""),), track((1.0, "found"), (2.0, "speech")), config=CONFIG
-    )
+    lines, at, _ = place(track((1.0, "found"), (2.0, "speech")))
+
+    fused, stats = fuse_audio_index((speech(0.0, 5.0, ""),), lines, at, config=CONFIG)
 
     assert fused[0].text == "found speech"
     assert stats["regions_recovered"] == 1
@@ -240,9 +330,9 @@ def test_a_recovered_empty_region_is_counted_as_such() -> None:
 
 def test_the_guard_is_reported_rather_than_silently_skipping() -> None:
     segments = (speech(0.0, 5.0, "the quick brown fox jumps over"),)
-    unrelated = track((1.0, "completely"), (2.0, "unrelated"), (3.0, "advertising"))
+    lines, at, _ = place(track((1.0, "completely"), (2.0, "unrelated"), (3.0, "advertising")))
 
-    fused, stats = fuse_audio_index(segments, unrelated, config=CONFIG)
+    fused, stats = fuse_audio_index(segments, lines, at, config=CONFIG)
 
     assert fused == segments
     assert stats["regions_guarded"] == 1
@@ -250,15 +340,11 @@ def test_the_guard_is_reported_rather_than_silently_skipping() -> None:
 
 
 # -------------------------------------------------------------------- text
-
-
 def test_a_misread_line_is_corrected_from_the_track() -> None:
     cues = (cue(54.0, 58.0, "영양 균형 행기기 1일차,오늘은 점심 도시락부터"),)
-    corrected, stats = fuse_text_index(
-        cues,
-        track((54.0, "영양 균형 챙기기 1일차, 오늘은 점심 도시락부터"), word_timing=False),
-        config=CONFIG,
-    )
+    fixed = "영양 균형 챙기기 1일차, 오늘은 점심 도시락부터"
+    lines, _, spans = place(track((54.0, fixed), word_timing=False))
+    corrected, stats = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert corrected[0].text == "영양 균형 챙기기 1일차, 오늘은 점심 도시락부터"
     assert stats["corrected"] == 1
@@ -266,9 +352,8 @@ def test_a_misread_line_is_corrected_from_the_track() -> None:
 
 def test_position_and_size_come_from_ocr_because_the_track_has_none() -> None:
     cues = (TextCue(10.0, 14.0, "듬뿐 올려주고", "top left", "large"),)
-    corrected, _ = fuse_text_index(
-        cues, track((10.0, "듬뿍 올려주고"), word_timing=False), config=CONFIG
-    )
+    lines, _, spans = place(track((10.0, "듬뿍 올려주고"), word_timing=False))
+    corrected, _ = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert corrected[0].text == "듬뿍 올려주고"
     assert corrected[0].position == "top left"
@@ -278,12 +363,14 @@ def test_position_and_size_come_from_ocr_because_the_track_has_none() -> None:
 def test_a_correction_may_not_absorb_a_neighbouring_row() -> None:
     """Measured failure: the row took the previous line's text and duplicated it."""
     cues = (cue(40.0, 44.0, "한국인 3명 중 1명이 영양불균형이라고 해서"),)
-    long_cue = track(
-        (40.0, "마침 제스프리 캠페인을 보는데 한국인 3명 중 1명이 영양불균형이라고 해서"),
-        word_timing=False,
+    lines, _, spans = place(
+        track(
+            (40.0, "마침 제스프리 캠페인을 보는데 한국인 3명 중 1명이 영양불균형이라고 해서"),
+            word_timing=False,
+        )
     )
 
-    corrected, stats = fuse_text_index(cues, long_cue, config=CONFIG)
+    corrected, stats = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert corrected == cues
     assert stats["guarded"] == 1
@@ -292,9 +379,10 @@ def test_a_correction_may_not_absorb_a_neighbouring_row() -> None:
 def test_a_correction_may_not_drop_half_the_row() -> None:
     joined = "영양불균형으로 고민이신 분들! / 저처럼 키위 하나를 더해 보는 것도 추천!"
     cues = (cue(588.0, 592.0, joined),)
-    short_cue = track((588.0, "저처럼 키위 하나를 더해 보는 것도 추천!"), word_timing=False)
+    half = "저처럼 키위 하나를 더해 보는 것도 추천!"
+    lines, _, spans = place(track((588.0, half), word_timing=False))
 
-    corrected, stats = fuse_text_index(cues, short_cue, config=CONFIG)
+    corrected, stats = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert corrected == cues
     assert stats["guarded"] == 1
@@ -304,9 +392,8 @@ def test_text_only_ocr_saw_is_kept() -> None:
     """Background text really is on the frame; the track not mentioning it is not evidence."""
     cues = (cue(60.0, 68.0, "pyrex"),)
 
-    corrected, stats = fuse_text_index(
-        cues, track((60.0, "완전히 다른 자막 문장입니다"), word_timing=False), config=CONFIG
-    )
+    lines, _, spans = place(track((60.0, "완전히 다른 자막 문장입니다"), word_timing=False))
+    corrected, stats = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert corrected == cues
     assert stats["corrected"] == 0
@@ -316,11 +403,61 @@ def test_lines_only_the_track_has_are_not_added() -> None:
     """They have no position or size, and OCR never saw them."""
     cues = (cue(10.0, 14.0, "seen on screen"),)
 
-    corrected, _ = fuse_text_index(
-        cues,
-        track((10.0, "seen on screen"), (200.0, "never on screen"), word_timing=False),
-        config=CONFIG,
+    lines, _, spans = place(
+        track((10.0, "seen on screen"), (200.0, "never on screen"), word_timing=False)
     )
+    corrected, _ = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert len(corrected) == 1
     assert corrected[0].text == "seen on screen"
+
+
+# ----------------------------------------------------------------- overlay
+
+
+def test_a_video_that_narrates_then_goes_quiet_feeds_both_indexes() -> None:
+    """The case a whole-track verdict files entirely as one or the other."""
+    # A plausible mis-transcription of the same eleven lines, so the two
+    # accounts resemble each other and the alignment guard does not fire.
+    segments = (
+        speech(0.0, 60.0, " ".join(["spokn words here"] * 11)),
+        Segment(60.0, 260.0, "", "unknown", events=("music",), kind=NON_SPEECH),
+    )
+    # The OCR reading differs from the track only past the matching head, which
+    # is the shape a real misread takes: recognisable line, one wrong syllable.
+    screen = tuple(
+        cue(float(t), float(t) + 4, "화면에 적힌 문장입니다 오늘도 펀집하다가")
+        for t in range(200, 260, 5)
+    )
+    narrated = tuple((float(t), "spoken words here") for t in range(5, 60, 5))
+    silent = tuple(
+        (float(t), "화면에 적힌 문장입니다 오늘도 편집하다가") for t in range(200, 260, 5)
+    )
+    mixed = track(*narrated, *silent, word_timing=False, language="ko")
+
+    result = overlay(segments, screen, mixed, language="ko")
+
+    assert result.summary["verdict"] == MIXED
+    assert result.summary["routing"][AUDIO] == len(narrated)
+    assert result.summary["routing"][TEXT] == len(silent)
+    assert "spokn" not in result.segments[0].text
+    assert result.segments[0].text.startswith("spoken words here")
+    assert result.segments[1] == segments[1]
+    assert any(before.text != after.text for before, after in zip(screen, result.cues, strict=True))
+
+
+def test_a_track_nothing_can_be_done_with_leaves_the_index_alone() -> None:
+    segments = (speech(0.0, 10.0, "heard"),)
+    result = overlay(segments, (), track((500.0, "buy"), (501.0, "merch")))
+
+    assert result.summary["verdict"] == REJECTED_UNALIGNED
+    assert result.segments == segments
+
+
+def test_no_track_is_not_a_failure() -> None:
+    segments = (speech(0.0, 10.0, "heard"),)
+    result = overlay(segments, (), None)
+
+    assert result.summary is None
+    assert result.applied is False
+    assert result.segments == segments

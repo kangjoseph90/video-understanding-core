@@ -432,5 +432,7 @@ def test_the_run_records_what_it_sent_and_why(tmp_path: Path) -> None:
 
     events = [json.loads(line) for line in (run_dir / "trace.jsonl").read_text().splitlines()]
     fusion = next(e for e in events if e["event"] == "caption_fusion")
-    assert fusion["result_summary"]["verdict"] == "speech_transcript"
-    assert fusion["result_summary"]["fusion"]["regions_rewritten"] == 1
+    summary = fusion["result_summary"]
+    assert summary["verdict"] == "speech_transcript"
+    assert summary["routing"] == {"audio": 3, "text": 0, "drop": 0}
+    assert summary["fusion"]["audio"]["regions_rewritten"] == 1
