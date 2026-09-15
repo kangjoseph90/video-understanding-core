@@ -276,96 +276,107 @@ def write_captions(video: Path, *cues: tuple[float, str], kind: str = "manual") 
     )
 
 
-def test_a_caption_track_corrects_the_transcript_without_a_sidecar_of_its_own(
-    tmp_path: Path,
-) -> None:
-    video = make_video(tmp_path / "sample.mp4")
-    write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
-    config = load_config(write_config(tmp_path))
+def render_with_captions(video: Path, index, config) -> tuple[str, object]:
+    """What the prompt would carry: the stored index with the track applied."""
+    from vuc.caption_fusion import overlay_captions
+    from vuc.captions import load_caption_track
 
-    index, cache, _, _ = index_video(
+    overlay = overlay_captions(
+        index,
+        load_caption_track(video),
+        audio_language="en",
+        config=config.captions.attribution(),
+    )
+    return render_audio_index(overlay.segments), overlay
+
+
+def index_with_stubs(video: Path, config, text: str = "spoken words"):
+    return index_video(
         video,
         config,
-        transcriber=StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
+        transcriber=StubTranscriber([Segment(0.0, 7.2, text, "en")]),
         vad=StubVAD([(2.4, 9.6)]),
         event_tagger=StubTagger(),
         ocr_engine=StubOCREngine(),
     )
 
-    assert index.captions["verdict"] == "speech_transcript"
-    assert "corrected spoken words" in cache.audio_index_path.read_text(encoding="utf-8")
+
+def test_a_caption_track_corrects_the_rendered_index(tmp_path: Path) -> None:
+    video = make_video(tmp_path / "sample.mp4")
+    write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
+    config = load_config(write_config(tmp_path))
+
+    index, _, _, _ = index_with_stubs(video, config)
+    rendered, overlay = render_with_captions(video, index, config)
+
+    assert overlay.summary["verdict"] == "speech_transcript"
+    assert "corrected spoken words" in rendered
 
 
-def test_no_caption_sidecar_leaves_the_index_exactly_as_it_was(tmp_path: Path) -> None:
-    """The correction is optional; losing it must cost nothing else."""
-    plain = tmp_path / "plain"
-    plain.mkdir()
-    with_track = tmp_path / "with_track"
-    with_track.mkdir()
+def test_the_stored_index_keeps_what_the_video_produced(tmp_path: Path) -> None:
+    """index.json and the cached .txt are the observation; the track is not in them."""
+    video = make_video(tmp_path / "sample.mp4")
+    write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
+    config = load_config(write_config(tmp_path))
 
-    outputs = []
-    for directory in (plain, with_track):
-        video = make_video(directory / "sample.mp4")
-        if directory is with_track:
-            write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
-        config = load_config(write_config(directory))
-        _, cache, _, _ = index_video(
-            video,
-            config,
-            transcriber=StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
-            vad=StubVAD([(2.4, 9.6)]),
-            event_tagger=StubTagger(),
-            ocr_engine=StubOCREngine(),
-        )
-        outputs.append(cache.audio_index_path.read_text(encoding="utf-8"))
+    index, cache, _, _ = index_with_stubs(video, config)
 
-    assert "spoken words" in outputs[0]
-    assert "corrected" not in outputs[0]
-    assert outputs[0] != outputs[1]
+    assert "corrected" not in cache.audio_index_path.read_text(encoding="utf-8")
+    assert "corrected" not in json.dumps(index.to_dict(), ensure_ascii=False)
+    assert "captions" not in index.to_dict()
 
 
-def test_a_track_that_changes_rebuilds_rather_than_serving_the_old_index(
+def test_a_track_appearing_does_not_rebuild_the_index(tmp_path: Path) -> None:
+    """The correction is cheap; redoing the VAD, the ASR and the OCR is not."""
+    video = make_video(tmp_path / "sample.mp4")
+    config = load_config(write_config(tmp_path))
+    index_with_stubs(video, config)
+
+    write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
+    _, _, cached, _ = index_with_stubs(video, config)
+
+    assert cached is True
+
+
+def test_a_changed_track_changes_the_prompt_without_touching_the_index(
     tmp_path: Path,
 ) -> None:
     video = make_video(tmp_path / "sample.mp4")
     write_captions(video, (3.0, "first"), (4.0, "spoken"), (5.0, "words"))
     config = load_config(write_config(tmp_path))
-    common = {
-        "transcriber": StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
-        "vad": StubVAD([(2.4, 9.6)]),
-        "event_tagger": StubTagger(),
-        "ocr_engine": StubOCREngine(),
-    }
-    index_video(video, config, **common)
+    index, cache, _, _ = index_with_stubs(video, config)
+    before = cache.audio_index_path.read_text(encoding="utf-8")
 
     write_captions(video, (3.0, "second"), (4.0, "spoken"), (5.0, "words"))
-    _, cache, cached, _ = index_video(video, config, **common)
+    rendered, _ = render_with_captions(video, index, config)
 
-    assert cached is False
-    assert "second spoken words" in cache.audio_index_path.read_text(encoding="utf-8")
+    assert "second spoken words" in rendered
+    assert cache.audio_index_path.read_text(encoding="utf-8") == before
+
+
+def test_no_caption_sidecar_costs_only_the_correction(tmp_path: Path) -> None:
+    video = make_video(tmp_path / "sample.mp4")
+    config = load_config(write_config(tmp_path))
+
+    index, _, _, _ = index_with_stubs(video, config)
+    rendered, overlay = render_with_captions(video, index, config)
+
+    assert overlay.summary is None
+    assert "spoken words" in rendered
 
 
 def test_the_prompt_never_says_where_a_line_came_from(tmp_path: Path) -> None:
-    """Provenance lives in index.json and the trace, never in what the model reads."""
+    """Provenance lives in the overlay summary and the trace, never in the prompt."""
     from vuc.agent import build_prompt_body
 
     video = make_video(tmp_path / "sample.mp4")
     write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
     config = load_config(write_config(tmp_path))
-    index, _, _, _ = index_video(
-        video,
-        config,
-        transcriber=StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
-        vad=StubVAD([(2.4, 9.6)]),
-        event_tagger=StubTagger(),
-        ocr_engine=StubOCREngine(),
-    )
+    index, _, _, _ = index_with_stubs(video, config)
+    rendered, _ = render_with_captions(video, index, config)
 
     prompt = build_prompt_body(
-        "summarise",
-        index.video.duration_s,
-        audio_index=render_audio_index(index.audio.segments),
-        text_index="",
+        "summarise", index.video.duration_s, audio_index=rendered, text_index=""
     )
 
     assert "corrected" in prompt

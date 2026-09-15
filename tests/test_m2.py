@@ -309,6 +309,8 @@ def test_agent_can_finish_without_tools_or_forced_retry(tmp_path: Path, monkeypa
     raw_report, stats = run_agent_loop(
         query="summary",
         index=service.index,
+        audio_index=render_audio_index(service.index.audio.segments),
+        text_index="",
         config=service.config,
         service=service,
         client=client,

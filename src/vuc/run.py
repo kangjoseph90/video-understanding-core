@@ -10,6 +10,8 @@ from vuc.advanced_asr import AdvancedASRProvider
 from vuc.agent import REPORT_SCHEMA, build_prompt_body, run_agent_loop
 from vuc.audio import AudioEventTagger
 from vuc.cache import VideoCache, new_run_id, sha256_file
+from vuc.caption_fusion import overlay_captions
+from vuc.captions import load_caption_track
 from vuc.config import AppConfig
 from vuc.frames import create_montages, extract_sampled_frames, montage_cell_size
 from vuc.hints import VideoHints, load_video_hints
@@ -194,6 +196,9 @@ def run_single_pass(
     service: ToolService,
     client: ChatCompletionsClient,
     hints: VideoHints | None = None,
+    rendered_audio: str = "",
+    rendered_text: str = "",
+    prompt_path: Path | None = None,
 ) -> tuple[str, dict[str, Any]]:
     started = time.monotonic()
     frames_wall_s = 0.0
@@ -206,8 +211,8 @@ def run_single_pass(
         # baseline_full builds no index; the label says where its lines came from.
         audio_label = "전체 Whisper 전사 (구간 표기는 [시작-끝], 단위는 초)"
     elif mode == "baseline_index_only":
-        audio_index = render_audio_index(index.audio.segments)
-        text_index = render_text_index(index.text.cues)
+        audio_index = rendered_audio
+        text_index = rendered_text
         asr_wall_s = 0.0
         images = [Path(path) for path in index.visual.montages]
         audio_label = AUDIO_INDEX_LABEL
@@ -222,6 +227,8 @@ def run_single_pass(
         text_index=text_index,
         hints=hints,
     )
+    if prompt_path is not None:
+        prompt_path.write_text(body + "\n", encoding="utf-8")
     content: list[dict[str, Any]] = [
         {
             "type": "text",
@@ -395,6 +402,18 @@ def run_video(
     trace_path = run_dir / "trace.jsonl"
     video_path = Path(index.video.path)
     actual_query = query or config.agent.query
+    # The stored index is what the video produced; a caption track corrects it
+    # only on the way into the prompt. The cached .txt files stay the plain
+    # index, and what was actually sent is written beside this run's trace.
+    overlay = overlay_captions(
+        index,
+        load_caption_track(video_path) if config.captions.enabled else None,
+        audio_language=hints.language if hints else None,
+        config=config.captions.attribution(),
+    )
+    rendered_audio = render_audio_index(overlay.segments)
+    rendered_text = render_text_index(overlay.cues)
+    prompt_path = run_dir / "prompt.txt"
     service = ToolService(
         video_path=video_path,
         index=index,
@@ -417,15 +436,21 @@ def run_video(
             service=service,
             client=client,
             hints=hints,
+            rendered_audio=rendered_audio,
+            rendered_text=rendered_text,
+            prompt_path=prompt_path,
         )
     else:
         raw_report, stats = run_agent_loop(
             query=actual_query,
             index=index,
+            audio_index=rendered_audio,
+            text_index=rendered_text,
             config=config,
             service=service,
             client=client,
             hints=hints,
+            prompt_path=prompt_path,
         )
     repair_stats: dict[str, Any] = {"report_repaired": False}
     try:

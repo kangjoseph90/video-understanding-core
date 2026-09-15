@@ -165,6 +165,25 @@ class CaptionsConfig:
     scope_ratio_max: float = 1.25
     text_match_min: float = 0.55
 
+    def attribution(self) -> Any:
+        """The runtime settings object the fusion pass takes.
+
+        Imported lazily so the config module stays free of the pass that reads
+        it; this is the only direction the dependency should run.
+        """
+        from vuc.caption_fusion import AttributionConfig
+
+        return AttributionConfig(
+            vad_overlap_min=self.vad_overlap_min,
+            ocr_match_min=self.ocr_match_min,
+            script_ratio_min=self.script_ratio_min,
+            ocr_window_s=self.ocr_window_s,
+            align_ratio_min=self.align_ratio_min,
+            scope_ratio_min=self.scope_ratio_min,
+            scope_ratio_max=self.scope_ratio_max,
+            text_match_min=self.text_match_min,
+        )
+
 
 @dataclass(frozen=True)
 class FramesConfig:

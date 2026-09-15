@@ -156,6 +156,11 @@ class VideoMetadata:
 class VideoIndex:
     """Three separate indexes over one video, plus what the file itself is.
 
+    This is what processing the video produced and nothing else. Anything that
+    arrived alongside the file -- channel metadata, a caption track -- is
+    applied when the prompt is built, not folded in here, so the index stays a
+    function of the video and the processing settings alone.
+
     They are kept apart on purpose. The audio index and the text index are
     independent observers with their own units, their own failure modes and
     their own line formats; folding them into one list made the text look like
@@ -171,10 +176,6 @@ class VideoIndex:
     created_at: str
     indexer: dict[str, Any] = field(default_factory=dict)
     index_config: dict[str, Any] = field(default_factory=dict)
-    # What a channel-provided caption track was judged to be and what it
-    # changed. Diagnostic only: it is written here and never rendered, because
-    # the agent is told what was heard, not who heard it.
-    captions: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -186,7 +187,6 @@ class VideoIndex:
             "created_at": self.created_at,
             "indexer": self.indexer,
             "index_config": self.index_config,
-            "captions": self.captions,
         }
 
     @classmethod
@@ -200,5 +200,4 @@ class VideoIndex:
             created_at=data["created_at"],
             indexer=data.get("indexer", {}),
             index_config=data.get("index_config", {}),
-            captions=data.get("captions", {}),
         )

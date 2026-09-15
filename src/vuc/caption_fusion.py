@@ -36,7 +36,7 @@ from vuc.captions import (
     token_stream,
     tokenize,
 )
-from vuc.models import SPEECH, Segment, TextCue
+from vuc.models import SPEECH, Segment, TextCue, VideoIndex
 
 SPEECH_TRANSCRIPT = "speech_transcript"
 HARDSUB_COPY = "hardsub_copy"
@@ -384,3 +384,75 @@ def fuse_text_index(
             )
         )
     return tuple(updated), stats
+
+
+# ----------------------------------------------------------------- overlay
+
+
+@dataclass(frozen=True)
+class CaptionOverlay:
+    """The index as the model should read it, plus why it reads that way.
+
+    Applied when the prompt is built, not when the index is written. The index
+    is what processing the video produced and stays that; a caption track is
+    something that arrived alongside it, and folding it into the stored index
+    made a track appearing or a threshold moving cost a full rebuild of the
+    VAD, the ASR and the OCR -- minutes of model time to redo a correction that
+    takes milliseconds.
+    """
+
+    segments: tuple[Segment, ...]
+    cues: tuple[TextCue, ...]
+    summary: dict[str, Any] | None = None
+
+    @property
+    def applied(self) -> bool:
+        return self.summary is not None
+
+
+def overlay_captions(
+    index: VideoIndex,
+    track: CaptionTrack | None,
+    *,
+    audio_language: str | None,
+    config: AttributionConfig,
+) -> CaptionOverlay:
+    """Judge the track and correct whichever index it belongs to.
+
+    Returns the index untouched when there is no track, when the track is a
+    translation or otherwise unaligned, or when anything goes wrong: the
+    correction is worth having and worth losing quietly.
+    """
+    plain = CaptionOverlay(index.audio.segments, index.text.cues)
+    if track is None:
+        return plain
+    try:
+        attribution = attribute(
+            track,
+            audio_language=audio_language,
+            speech=[(s.start, s.end) for s in index.audio.segments if s.kind == SPEECH],
+            text_cues=index.text.cues,
+            config=config,
+        )
+        segments, cues = index.audio.segments, index.text.cues
+        fusion: dict[str, Any] = {}
+        if attribution.is_speech_transcript:
+            segments, fusion = fuse_audio_index(segments, track, config=config)
+        elif attribution.is_hardsub_copy:
+            cues, fusion = fuse_text_index(cues, track, config=config)
+    except (ValueError, TypeError, KeyError):
+        return plain
+    return CaptionOverlay(
+        segments=segments,
+        cues=cues,
+        summary={
+            "language": track.language,
+            "kind": track.kind,
+            "format": track.source_format,
+            "content_sha256": track.content_sha256,
+            "has_word_timing": track.has_word_timing,
+            "cues": len(track.cues),
+            **attribution.to_dict(),
+            "fusion": fusion,
+        },
+    )

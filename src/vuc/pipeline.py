@@ -28,13 +28,6 @@ from vuc.audio import (
     timeline_regions,
 )
 from vuc.cache import VideoCache, new_run_id, sha256_file
-from vuc.caption_fusion import (
-    AttributionConfig,
-    attribute,
-    fuse_audio_index,
-    fuse_text_index,
-)
-from vuc.captions import load_caption_track
 from vuc.config import AppConfig
 from vuc.frames import burn_in_timestamp, create_montages, montage_cell_size
 from vuc.hints import VideoHints, load_video_hints
@@ -42,7 +35,6 @@ from vuc.index_text import render_audio_index, render_text_index
 from vuc.indexer import SenseVoiceTranscriber, Transcriber
 from vuc.media import MediaError, extract_audio, probe_duration
 from vuc.models import (
-    SPEECH,
     AudioIndex,
     Segment,
     TextCue,
@@ -73,11 +65,7 @@ def _load_cached(path: Path) -> VideoIndex:
     return VideoIndex.from_dict(json.loads(path.read_text(encoding="utf-8")))
 
 
-def _index_config(
-    config: AppConfig,
-    language_hint: str | None,
-    caption_hash: str | None = None,
-) -> dict[str, Any]:
+def _index_config(config: AppConfig, language_hint: str | None) -> dict[str, Any]:
     """Everything that changes what the index says.
 
     A cached index is only reused when this matches, so turning OCR on or
@@ -98,9 +86,6 @@ def _index_config(
             for key, value in vars(config.ocr.for_language(language_hint)).items()
             if key != "rec_by_language"
         },
-        # The track itself is part of what the index says, so a track that
-        # appears, changes or disappears rebuilds rather than being ignored.
-        "captions": {**vars(config.captions), "content_sha256": caption_hash},
         "montage_width": config.montage.width,
         "montage_height": config.montage.height,
         "montage_n": config.frames.index_montage_n,
@@ -192,12 +177,7 @@ def index_video(
     trace_path = cache.run_dir(actual_run_id) / "trace.jsonl"
     trace = TraceWriter(trace_path)
     hint_language = hints.language if hints else None
-    # Picked up here for the same reason the hints sidecar is: `vuc index` must
-    # see it too, and a track that changed has to rebuild the index.
-    track = load_caption_track(video_path) if config.captions.enabled else None
-    index_config = _index_config(
-        config, hint_language, track.content_sha256 if track else None
-    )
+    index_config = _index_config(config, hint_language)
     if cache.index_json_path.exists() and not force:
         try:
             cached = _load_cached(cache.index_json_path)
@@ -388,79 +368,12 @@ def index_video(
         timings["visual_s"] = round(time.monotonic() - started, 3)
         return result, montages
 
-    def fuse_captions(
-        segments: list[Segment], cues: list[TextCue]
-    ) -> tuple[list[Segment], list[TextCue], dict[str, Any] | None]:
-        """Judge the track, then let it correct whichever index it belongs to.
-
-        Runs after both halves are built because the judgement needs both: the
-        VAD split says whether the track is a transcript, and the OCR rows say
-        whether it is a copy of the screen. Any failure here costs the
-        correction and nothing else.
-        """
-        if track is None or not config.captions.enabled:
-            return segments, cues, None
-        started = time.monotonic()
-        settings = AttributionConfig(
-            vad_overlap_min=config.captions.vad_overlap_min,
-            ocr_match_min=config.captions.ocr_match_min,
-            script_ratio_min=config.captions.script_ratio_min,
-            ocr_window_s=config.captions.ocr_window_s,
-            align_ratio_min=config.captions.align_ratio_min,
-            scope_ratio_min=config.captions.scope_ratio_min,
-            scope_ratio_max=config.captions.scope_ratio_max,
-            text_match_min=config.captions.text_match_min,
-        )
-        try:
-            attribution = attribute(
-                track,
-                audio_language=hint_language,
-                speech=[(s.start, s.end) for s in segments if s.kind == SPEECH],
-                text_cues=tuple(cues),
-                config=settings,
-            )
-            fusion: dict[str, Any] = {}
-            if attribution.is_speech_transcript:
-                fused, fusion = fuse_audio_index(tuple(segments), track, config=settings)
-                segments = list(fused)
-            elif attribution.is_hardsub_copy:
-                fused_cues, fusion = fuse_text_index(tuple(cues), track, config=settings)
-                cues = list(fused_cues)
-        except (ValueError, TypeError, KeyError) as exc:  # degrade, never abort
-            trace.write(
-                step="index",
-                event="caption_fusion_failed",
-                arguments={"language": track.language, "kind": track.kind},
-                result_summary={"error": f"{type(exc).__name__}: {exc}"},
-                duration_ms=round((time.monotonic() - started) * 1000),
-            )
-            return segments, cues, None
-        summary = {
-            "language": track.language,
-            "kind": track.kind,
-            "format": track.source_format,
-            "content_sha256": track.content_sha256,
-            "has_word_timing": track.has_word_timing,
-            "cues": len(track.cues),
-            **attribution.to_dict(),
-            "fusion": fusion,
-        }
-        trace.write(
-            step="index",
-            event="caption_fusion",
-            arguments={"language": track.language, "kind": track.kind},
-            result_summary=summary,
-            duration_ms=round((time.monotonic() - started) * 1000),
-        )
-        return segments, cues, summary
-
     index_started = time.monotonic()
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="vuc-index") as executor:
         audio_future = executor.submit(index_audio)
         visual_future = executor.submit(index_visual_and_text)
         segments = audio_future.result()
         scan, montages, cues = visual_future.result()
-    segments, cues, caption_summary = fuse_captions(segments, cues)
     timings["total_s"] = round(time.monotonic() - index_started, 3)
 
     index = VideoIndex(
@@ -486,7 +399,6 @@ def index_video(
             "cold_total_s": timings.get("total_s", 0.0),
         },
         index_config=index_config,
-        captions=caption_summary or {},
     )
     cache.write_json(cache.index_json_path, index.to_dict())
     write_index_files(cache, index)
