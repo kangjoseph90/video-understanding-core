@@ -414,6 +414,20 @@ def run_video(
     rendered_audio = render_audio_index(overlay.segments)
     rendered_text = render_text_index(overlay.cues)
     prompt_path = run_dir / "prompt.txt"
+    if overlay.applied:
+        # The verdict and the counts are the only record of why this run's
+        # prompt differs from the stored index. They are not in index.json any
+        # more, and they never reach the model.
+        TraceWriter(trace_path).write(
+            step="render",
+            event="caption_fusion",
+            arguments={
+                "language": overlay.summary["language"],
+                "kind": overlay.summary["kind"],
+            },
+            result_summary=overlay.summary,
+            duration_ms=0,
+        )
     service = ToolService(
         video_path=video_path,
         index=index,

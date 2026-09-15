@@ -382,3 +382,55 @@ def test_the_prompt_never_says_where_a_line_came_from(tmp_path: Path) -> None:
     assert "corrected" in prompt
     for leak in ("speech_transcript", "hardsub", "caption", "manual", "vad_overlap", "sensevoice"):
         assert leak not in prompt.casefold()
+
+
+def test_the_run_records_what_it_sent_and_why(tmp_path: Path) -> None:
+    """The prompt and the verdict live with the run; the cache keeps the index."""
+    from vuc.llm import ChatResult
+    from vuc.run import run_video
+
+    class StubVLM:
+        model = "stub"
+
+        def complete(self, messages, **kwargs):
+            del messages, kwargs
+            return ChatResult(
+                message={
+                    "role": "assistant",
+                    "content": json.dumps(
+                        {
+                            "title": "T",
+                            "one_line_summary": "S",
+                            "sections": [],
+                            "key_moments": [],
+                        }
+                    ),
+                },
+                usage={"prompt_tokens": 1, "completion_tokens": 1},
+                latency_s=0.0,
+            )
+
+    video = make_video(tmp_path / "sample.mp4")
+    write_captions(video, (3.0, "corrected"), (4.0, "spoken"), (5.0, "words"))
+    config = load_config(
+        write_config(tmp_path, ("  mode: agentic", "  mode: baseline_index_only"))
+    )
+    report, _, _ = run_video(
+        video,
+        config,
+        query="q",
+        index_transcriber=StubTranscriber([Segment(0.0, 7.2, "spoken words", "en")]),
+        index_vad=StubVAD([(2.4, 9.6)]),
+        index_event_tagger=StubTagger(),
+        index_ocr_engine=StubOCREngine(),
+        llm_client=StubVLM(),
+    )
+
+    run_dir = Path(report["meta"]["trace"]).parent
+    sent = (run_dir / "prompt.txt").read_text(encoding="utf-8")
+    assert "corrected spoken words" in sent
+
+    events = [json.loads(line) for line in (run_dir / "trace.jsonl").read_text().splitlines()]
+    fusion = next(e for e in events if e["event"] == "caption_fusion")
+    assert fusion["result_summary"]["verdict"] == "speech_transcript"
+    assert fusion["result_summary"]["fusion"]["regions_rewritten"] == 1
