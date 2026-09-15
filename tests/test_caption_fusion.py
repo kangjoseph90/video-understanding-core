@@ -31,6 +31,7 @@ from vuc.models import (
     VideoMetadata,
     VisualIndex,
 )
+from vuc.pipeline import SCHEMA_VERSION
 
 CONFIG = AttributionConfig()
 
@@ -58,7 +59,7 @@ def cue(start: float, end: float, text: str) -> TextCue:
 
 def make_index(segments=(), cues=(), duration=600.0) -> VideoIndex:
     return VideoIndex(
-        schema_version=5,
+        schema_version=SCHEMA_VERSION,
         video=VideoMetadata(path="/tmp/v.mp4", sha256="h", duration_s=duration, size_bytes=1),
         audio=AudioIndex(tuple(segments)),
         text=TextIndex(tuple(cues)),

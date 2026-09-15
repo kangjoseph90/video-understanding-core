@@ -48,7 +48,7 @@ from vuc.trace import TraceWriter
 from vuc.vad import VADProvider, create_vad, non_speech_view, speech_view
 from vuc.visual_scan import ScanResult, scan_video
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 4
 
 
 def _validate_video(path: Path, config: AppConfig) -> Path:
