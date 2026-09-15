@@ -33,7 +33,6 @@ from vuc.captions import (
     CaptionTrack,
     normalize,
     strip_conventions,
-    token_stream,
     tokenize,
 )
 from vuc.models import SPEECH, Segment, TextCue, VideoIndex
@@ -89,32 +88,6 @@ class AttributionConfig:
         }
 
 
-@dataclass(frozen=True)
-class Attribution:
-    verdict: str
-    language_ok: bool
-    script_ratio: float | None
-    vad_overlap: float
-    ocr_match: float
-
-    @property
-    def is_speech_transcript(self) -> bool:
-        return self.verdict == SPEECH_TRANSCRIPT
-
-    @property
-    def is_hardsub_copy(self) -> bool:
-        return self.verdict == HARDSUB_COPY
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "verdict": self.verdict,
-            "language_ok": self.language_ok,
-            "script_ratio": self.script_ratio,
-            "vad_overlap": round(self.vad_overlap, 4),
-            "ocr_match": round(self.ocr_match, 4),
-        }
-
-
 def script_ratio(text: str, language: str | None) -> float | None:
     """Fraction of the letters that belong to the declared script.
 
@@ -129,69 +102,6 @@ def script_ratio(text: str, language: str | None) -> float | None:
     if not letters:
         return 0.0
     return sum(1 for c in letters if belongs(c)) / len(letters)
-
-
-def vad_overlap(tokens: tuple[tuple[float, str], ...], speech: list[tuple[float, float]]) -> float:
-    if not tokens:
-        return 0.0
-    inside = sum(1 for at, _ in tokens if any(start <= at < end for start, end in speech))
-    return inside / len(tokens)
-
-
-def ocr_match(
-    cues: tuple[CaptionCue, ...],
-    text_cues: tuple[TextCue, ...],
-    *,
-    window_s: float,
-    head: int = 12,
-) -> float:
-    """How much of the track was also read off the screen at the same moment."""
-    candidates = [
-        (cue.start_s, normalize(strip_conventions(cue.text)))
-        for cue in cues
-        if len(normalize(cue.text)) >= 6
-    ]
-    if not candidates:
-        return 0.0
-    observed = [(cue.start, cue.end, normalize(cue.text)) for cue in text_cues]
-    hits = 0
-    for at, text in candidates:
-        for start, end, seen in observed:
-            if not seen or end <= at - window_s or start >= at + window_s:
-                continue
-            if text[:head] in seen or seen[:head] in text:
-                hits += 1
-                break
-    return hits / len(candidates)
-
-
-def attribute(
-    track: CaptionTrack,
-    *,
-    audio_language: str | None,
-    speech: list[tuple[float, float]],
-    text_cues: tuple[TextCue, ...],
-    config: AttributionConfig,
-) -> Attribution:
-    ratio = script_ratio(track.text, audio_language or track.language)
-    language_ok = ratio is None or ratio >= config.script_ratio_min
-    overlap = vad_overlap(token_stream(track), speech)
-    match = ocr_match(track.cues, text_cues, window_s=config.ocr_window_s)
-    if not language_ok:
-        verdict = REJECTED_LANGUAGE
-    elif overlap >= config.vad_overlap_min:
-        verdict = SPEECH_TRANSCRIPT
-    elif match >= config.ocr_match_min:
-        verdict = HARDSUB_COPY
-    else:
-        verdict = REJECTED_UNALIGNED
-    return Attribution(
-        verdict=verdict,
-        language_ok=language_ok,
-        script_ratio=None if ratio is None else round(ratio, 4),
-        vad_overlap=overlap,
-        ocr_match=match,
-    )
 
 
 # ----------------------------------------------------------------- routing
@@ -316,34 +226,20 @@ def route_cues(
 # ------------------------------------------------------------------ audio
 
 
-def placement_times(
-    cues: tuple[CaptionCue, ...],
-    spans: list[tuple[float, float]],
-    *,
-    word_timed: bool,
-) -> list[float]:
-    """When each line counts as happening, for the purpose of placing it.
-
-    A written line runs for its whole span, so its middle is where it belongs.
-    A word from an automatic track carries its own timestamp, and the gap to
-    the next word is mostly silence -- taking that midpoint pushes every word
-    later by half a pause and walks them over region boundaries.
-    """
-    if word_timed:
-        return [cue.start_s for cue in cues]
-    return [(start + end) / 2 for start, end in spans]
-
-
 def assign_cues(
-    cues: tuple[CaptionCue, ...],
-    at: list[float],
-    regions: list[tuple[float, float]],
+    cues: tuple[CaptionCue, ...], regions: list[tuple[float, float]]
 ) -> tuple[list[list[CaptionCue]], list[CaptionCue]]:
-    """Each line to the one region holding its midpoint, or to nowhere.
+    """Each line to the one region holding its start, or to nowhere.
 
     Whole lines rather than loose tokens, because the line is what carries the
     punctuation. Splitting on token timings spread a sentence across two
     regions and the halves came back as bare word lists.
+
+    Placed by where the line starts, which is the one timestamp a track
+    actually gives. A line's end is inferred from the next line, so a gap in
+    the captions stretches the one before it across the whole gap -- on the
+    cooking video that pushed 26 of 143 lines past the end of the region their
+    speech was in. Using the start instead placed all but three of them.
 
     Exclusive and exhaustive, so a line cannot be counted twice or vanish.
     Lines outside every speech region are dropped: the VAD split is the spine
@@ -352,9 +248,9 @@ def assign_cues(
     """
     buckets: list[list[CaptionCue]] = [[] for _ in regions]
     dropped: list[CaptionCue] = []
-    for cue, moment in zip(cues, at, strict=True):
+    for cue in cues:
         for index, (low, high) in enumerate(regions):
-            if low <= moment < high:
+            if low <= cue.start_s < high:
                 buckets[index].append(cue)
                 break
         else:
@@ -396,14 +292,13 @@ def fuse_region(asr_text: str, caption_texts: list[str], *, align_ratio_min: flo
 def fuse_audio_index(
     segments: tuple[Segment, ...],
     cues: tuple[CaptionCue, ...],
-    at: list[float],
     *,
     config: AttributionConfig,
 ) -> tuple[tuple[Segment, ...], dict[str, Any]]:
     """Rewrite the speech regions these lines cover. Non-speech is untouched."""
     speech_indexes = [i for i, segment in enumerate(segments) if segment.kind == SPEECH]
     regions = [(segments[i].start, segments[i].end) for i in speech_indexes]
-    buckets, dropped = assign_cues(cues, at, regions)
+    buckets, dropped = assign_cues(cues, regions)
 
     updated = list(segments)
     stats = {
@@ -572,7 +467,6 @@ def overlay_captions(
         ratio = script_ratio(track.text, audio_language or track.language)
         language_ok = ratio is None or ratio >= config.script_ratio_min
         spans = caption_spans(track)
-        at = placement_times(track.cues, spans, word_timed=track.has_word_timing)
         segments, cues = index.audio.segments, index.text.cues
         counts = {AUDIO: 0, TEXT: 0, DROP: len(track.cues)}
         fusion: dict[str, Any] = {}
@@ -580,16 +474,15 @@ def overlay_captions(
             speech = [(s.start, s.end) for s in segments if s.kind == SPEECH]
             decisions = route_cues(track, speech, cues, config=config)
             counts = {name: decisions.count(name) for name in (AUDIO, TEXT, DROP)}
-            rows = list(zip(track.cues, spans, at, decisions, strict=True))
-            audio_rows = [(c, s, m) for c, s, m, d in rows if d == AUDIO]
-            text_rows = [(c, s, m) for c, s, m, d in rows if d == TEXT]
+            rows = list(zip(track.cues, spans, decisions, strict=True))
+            audio_rows = [c for c, _, d in rows if d == AUDIO]
+            text_rows = [(c, s) for c, s, d in rows if d == TEXT]
             if audio_rows:
-                chosen, _, moments = zip(*audio_rows, strict=True)
                 segments, fusion[AUDIO] = fuse_audio_index(
-                    segments, chosen, list(moments), config=config
+                    segments, tuple(audio_rows), config=config
                 )
             if text_rows:
-                chosen, chosen_spans, _ = zip(*text_rows, strict=True)
+                chosen, chosen_spans = zip(*text_rows, strict=True)
                 cues, fusion[TEXT] = fuse_text_index(
                     cues, chosen, list(chosen_spans), config=config
                 )

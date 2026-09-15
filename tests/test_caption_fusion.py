@@ -16,7 +16,6 @@ from vuc.caption_fusion import (
     fuse_region,
     fuse_text_index,
     overlay_captions,
-    placement_times,
     route_cues,
     script_ratio,
 )
@@ -75,8 +74,7 @@ def overlay(segments, cues, track, *, language=None, config=CONFIG):
 
 
 def place(track):
-    spans = caption_spans(track)
-    return track.cues, placement_times(track.cues, spans, word_timed=track.has_word_timing), spans
+    return track.cues, caption_spans(track)
 
 
 # ------------------------------------------------------------------- axes
@@ -197,24 +195,31 @@ def test_the_window_is_not_delicate() -> None:
 # --------------------------------------------------------------- placement
 
 
-def test_a_written_line_is_placed_at_its_middle() -> None:
+def test_a_line_is_placed_where_it_starts() -> None:
+    """The start is the one timestamp a track actually gives.
+
+    The end is inferred from the next line, so a gap in the captions stretches
+    the line before it across the whole gap and its middle lands in silence.
+    """
     written = track((0.0, "one two three"), (10.0, "four"), word_timing=False)
-    _, at, _ = place(written)
+    buckets, dropped = assign_cues(written.cues, [(0.0, 5.0), (5.0, 20.0)])
 
-    assert at[0] == 5.0
+    assert [[c.text for c in b] for b in buckets] == [["one two three"], ["four"]]
+    assert dropped == []
 
 
-def test_a_timed_word_is_placed_at_its_own_timestamp() -> None:
-    """The gap to the next word is mostly silence, not part of the word."""
-    spoken = track((3.92, "hello"), (5.20, "everyone"))
-    _, at, _ = place(spoken)
+def test_a_gap_in_the_captions_does_not_drag_the_line_before_it() -> None:
+    sparse = track((10.0, "spoken here"), (9999.0, "much later"), word_timing=False)
 
-    assert at == [3.92, 5.20]
+    buckets, dropped = assign_cues(sparse.cues, [(0.0, 50.0)])
+
+    assert [c.text for c in buckets[0]] == ["spoken here"]
+    assert [c.text for c in dropped] == ["much later"]
 
 
 def test_every_line_lands_in_exactly_one_region_or_none() -> None:
     lines = (CaptionCue(1.0, "a"), CaptionCue(12.0, "b"), CaptionCue(99.0, "c"))
-    buckets, dropped = assign_cues(lines, [1.0, 12.0, 99.0], [(0.0, 10.0), (10.0, 20.0)])
+    buckets, dropped = assign_cues(lines, [(0.0, 10.0), (10.0, 20.0)])
 
     assert [[c.text for c in b] for b in buckets] == [["a"], ["b"]]
     assert [c.text for c in dropped] == ["c"]
@@ -224,9 +229,9 @@ def test_every_line_lands_in_exactly_one_region_or_none() -> None:
 def test_a_line_is_never_split_across_two_regions() -> None:
     """Splitting on token timings returned the halves as bare word lists."""
     straddling = (CaptionCue(8.0, "a sentence that runs over the boundary"),)
-    buckets, dropped = assign_cues(straddling, [11.0], [(0.0, 10.0), (10.0, 20.0)])
+    buckets, dropped = assign_cues(straddling, [(0.0, 10.0), (10.0, 20.0)])
 
-    assert [len(b) for b in buckets] == [0, 1]
+    assert [len(b) for b in buckets] == [1, 0]
     assert dropped == []
 
 
@@ -295,9 +300,9 @@ def test_non_speech_regions_are_never_touched() -> None:
         speech(0.0, 5.0, "wrong words"),
         Segment(5.0, 10.0, "", "unknown", events=("music",), kind=NON_SPEECH),
     )
-    lines, at, _ = place(track((1.0, "right"), (2.0, "words")))
+    lines, _ = place(track((1.0, "right"), (2.0, "words")))
 
-    fused, stats = fuse_audio_index(segments, lines, at, config=CONFIG)
+    fused, stats = fuse_audio_index(segments, lines, config=CONFIG)
 
     assert fused[1] == segments[1]
     assert fused[0].text == "right words"
@@ -306,9 +311,9 @@ def test_non_speech_regions_are_never_touched() -> None:
 
 def test_fusion_preserves_every_field_but_the_text() -> None:
     original = Segment(0.0, 5.0, "old", "ko", emotion="happy", events=("laugh",), raw_text="raw")
-    lines, at, _ = place(track((1.0, "old"), (2.0, "new")))
+    lines, _ = place(track((1.0, "old"), (2.0, "new")))
 
-    fused, _ = fuse_audio_index((original,), lines, at, config=CONFIG)
+    fused, _ = fuse_audio_index((original,), lines, config=CONFIG)
 
     assert fused[0].text == "old new"
     assert fused[0].language == "ko"
@@ -319,9 +324,9 @@ def test_fusion_preserves_every_field_but_the_text() -> None:
 
 
 def test_a_recovered_empty_region_is_counted_as_such() -> None:
-    lines, at, _ = place(track((1.0, "found"), (2.0, "speech")))
+    lines, _ = place(track((1.0, "found"), (2.0, "speech")))
 
-    fused, stats = fuse_audio_index((speech(0.0, 5.0, ""),), lines, at, config=CONFIG)
+    fused, stats = fuse_audio_index((speech(0.0, 5.0, ""),), lines, config=CONFIG)
 
     assert fused[0].text == "found speech"
     assert stats["regions_recovered"] == 1
@@ -330,9 +335,9 @@ def test_a_recovered_empty_region_is_counted_as_such() -> None:
 
 def test_the_guard_is_reported_rather_than_silently_skipping() -> None:
     segments = (speech(0.0, 5.0, "the quick brown fox jumps over"),)
-    lines, at, _ = place(track((1.0, "completely"), (2.0, "unrelated"), (3.0, "advertising")))
+    lines, _ = place(track((1.0, "completely"), (2.0, "unrelated"), (3.0, "advertising")))
 
-    fused, stats = fuse_audio_index(segments, lines, at, config=CONFIG)
+    fused, stats = fuse_audio_index(segments, lines, config=CONFIG)
 
     assert fused == segments
     assert stats["regions_guarded"] == 1
@@ -343,7 +348,7 @@ def test_the_guard_is_reported_rather_than_silently_skipping() -> None:
 def test_a_misread_line_is_corrected_from_the_track() -> None:
     cues = (cue(54.0, 58.0, "영양 균형 행기기 1일차,오늘은 점심 도시락부터"),)
     fixed = "영양 균형 챙기기 1일차, 오늘은 점심 도시락부터"
-    lines, _, spans = place(track((54.0, fixed), word_timing=False))
+    lines, spans = place(track((54.0, fixed), word_timing=False))
     corrected, stats = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert corrected[0].text == "영양 균형 챙기기 1일차, 오늘은 점심 도시락부터"
@@ -352,7 +357,7 @@ def test_a_misread_line_is_corrected_from_the_track() -> None:
 
 def test_position_and_size_come_from_ocr_because_the_track_has_none() -> None:
     cues = (TextCue(10.0, 14.0, "듬뿐 올려주고", "top left", "large"),)
-    lines, _, spans = place(track((10.0, "듬뿍 올려주고"), word_timing=False))
+    lines, spans = place(track((10.0, "듬뿍 올려주고"), word_timing=False))
     corrected, _ = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert corrected[0].text == "듬뿍 올려주고"
@@ -363,7 +368,7 @@ def test_position_and_size_come_from_ocr_because_the_track_has_none() -> None:
 def test_a_correction_may_not_absorb_a_neighbouring_row() -> None:
     """Measured failure: the row took the previous line's text and duplicated it."""
     cues = (cue(40.0, 44.0, "한국인 3명 중 1명이 영양불균형이라고 해서"),)
-    lines, _, spans = place(
+    lines, spans = place(
         track(
             (40.0, "마침 제스프리 캠페인을 보는데 한국인 3명 중 1명이 영양불균형이라고 해서"),
             word_timing=False,
@@ -380,7 +385,7 @@ def test_a_correction_may_not_drop_half_the_row() -> None:
     joined = "영양불균형으로 고민이신 분들! / 저처럼 키위 하나를 더해 보는 것도 추천!"
     cues = (cue(588.0, 592.0, joined),)
     half = "저처럼 키위 하나를 더해 보는 것도 추천!"
-    lines, _, spans = place(track((588.0, half), word_timing=False))
+    lines, spans = place(track((588.0, half), word_timing=False))
 
     corrected, stats = fuse_text_index(cues, lines, spans, config=CONFIG)
 
@@ -392,7 +397,7 @@ def test_text_only_ocr_saw_is_kept() -> None:
     """Background text really is on the frame; the track not mentioning it is not evidence."""
     cues = (cue(60.0, 68.0, "pyrex"),)
 
-    lines, _, spans = place(track((60.0, "완전히 다른 자막 문장입니다"), word_timing=False))
+    lines, spans = place(track((60.0, "완전히 다른 자막 문장입니다"), word_timing=False))
     corrected, stats = fuse_text_index(cues, lines, spans, config=CONFIG)
 
     assert corrected == cues
@@ -403,7 +408,7 @@ def test_lines_only_the_track_has_are_not_added() -> None:
     """They have no position or size, and OCR never saw them."""
     cues = (cue(10.0, 14.0, "seen on screen"),)
 
-    lines, _, spans = place(
+    lines, spans = place(
         track((10.0, "seen on screen"), (200.0, "never on screen"), word_timing=False)
     )
     corrected, _ = fuse_text_index(cues, lines, spans, config=CONFIG)
