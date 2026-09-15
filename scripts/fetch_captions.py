@@ -18,6 +18,7 @@ import argparse
 import json
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
@@ -42,13 +43,30 @@ def _pick(tracks: dict[str, Any], language: str) -> list[dict[str, Any]] | None:
     return None
 
 
+class FetchError(RuntimeError):
+    """The track exists but could not be retrieved right now."""
+
+
 def _fetch(formats: list[dict[str, Any]]) -> tuple[str, str] | None:
+    """The best available format, or None when the track offers none.
+
+    A transport failure is raised rather than returned: it means the track is
+    there and we could not have it, which must not be written down as "this
+    video has no captions". YouTube rate-limits, and a sidecar saying `null`
+    would be believed on every later run.
+    """
+    last: Exception | None = None
     for wanted in PREFERRED_FORMATS:
         for entry in formats:
             if str(entry.get("ext")) != wanted or not entry.get("url"):
                 continue
-            with urllib.request.urlopen(entry["url"], timeout=60) as response:
-                return response.read().decode("utf-8"), wanted
+            try:
+                with urllib.request.urlopen(entry["url"], timeout=60) as response:
+                    return response.read().decode("utf-8"), wanted
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last = exc
+    if last is not None:
+        raise FetchError(str(last)) from last
     return None
 
 
@@ -113,6 +131,7 @@ def main() -> int:
     manifest = yaml.safe_load(Path(args.manifest).read_text(encoding="utf-8"))
     video_dir = Path(args.video_dir)
     info_dir = Path(args.info_dir) if args.info_dir else None
+    failures: list[str] = []
 
     for entry in manifest["videos"]:
         video = video_dir / entry["file"]
@@ -128,7 +147,14 @@ def main() -> int:
             print(f"!! no audio language for {entry['id']}; skipping")
             continue
 
-        sidecar = build_sidecar(_info(entry["id"], info_dir, video.stem), str(language))
+        try:
+            sidecar = build_sidecar(_info(entry["id"], info_dir, video.stem), str(language))
+        except (FetchError, subprocess.CalledProcessError, OSError, ValueError) as exc:
+            # One video's bad day is not the others'; leave any existing
+            # sidecar alone rather than replacing it with a worse answer.
+            failures.append(entry["id"])
+            print(f"!! {entry['id']}: {type(exc).__name__}: {exc}")
+            continue
         out = sidecar_path(video)
         out.write_text(
             json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -141,6 +167,9 @@ def main() -> int:
                 f"{out.name}: {track['kind']}/{track['format']} "
                 f"{len(track['cues'])} cues word_timing={track['has_word_timing']}"
             )
+    if failures:
+        print(f"\n{len(failures)} could not be fetched: {', '.join(failures)}")
+        return 1
     return 0
 
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from vuc.captions import (
     CaptionCue,
     CaptionTrack,
@@ -214,3 +216,34 @@ def test_a_real_sidecar_round_trips(tmp_path: Path) -> None:
     loaded = load_caption_track(video)
 
     assert loaded == track
+
+
+def test_a_failed_fetch_is_not_recorded_as_having_no_captions(monkeypatch) -> None:
+    """A rate limit means the track is there and we could not have it.
+
+    Writing `track: null` for that would be believed by every later run, and
+    the video would silently lose its corrections until someone noticed.
+    """
+    import urllib.error
+
+    import scripts.fetch_captions as fetch
+
+    def refuse(url, timeout=0):
+        raise urllib.error.HTTPError(url, 429, "Too Many Requests", {}, None)
+
+    monkeypatch.setattr(fetch.urllib.request, "urlopen", refuse)
+
+    with pytest.raises(fetch.FetchError):
+        fetch.build_sidecar(
+            {"id": "v", "subtitles": {"ko": [{"ext": "json3", "url": "https://x/y"}]}}, "ko"
+        )
+
+
+def test_a_language_with_no_track_is_recorded_as_none(monkeypatch) -> None:
+    """Distinct from a failure: the fetch ran and there was nothing to take."""
+    import scripts.fetch_captions as fetch
+
+    sidecar = fetch.build_sidecar({"id": "v", "subtitles": {"en": []}}, "ko")
+
+    assert sidecar["track"] is None
+    assert sidecar["audio_language"] == "ko"

@@ -47,3 +47,16 @@ videos:
     channel: "あかね的日本語教室"
     url: "https://www.youtube.com/watch?v=5ZeHtRKHl7Y"
     license: null
+  - id: Fv5RGnmQw_8
+    file: manifest-korean-vlog-mixed.mp4
+    category: mixed_narration_and_hardsub
+    language: ko
+    duration_s: 950
+    title: "Homecooked Meals Vlog｜Makguksu, Bacon Kimchijeon"
+    channel: null
+    url: "https://www.youtube.com/watch?v=Fv5RGnmQw_8"
+    license: null
+    note: >-
+      Mostly silent with burned-in captions, but the creator speaks twice and
+      the uploaded track covers both. The one manifest entry whose caption
+      track routes to both indexes.
