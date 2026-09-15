@@ -19,6 +19,7 @@ naturally.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -131,6 +132,17 @@ def load_rows(path: Path) -> tuple[TranscriptRow, ...]:
     return tuple(sorted(kept, key=lambda r: (r.start_s, r.end_s)))
 
 
+def rows_digest(rows: tuple[TranscriptRow, ...]) -> str:
+    """Identity of the accumulated state a run was rendered against.
+
+    The prompt now depends on how much the agent has already learned, so a
+    report is only reproducible alongside the state it was written from. Twelve
+    hex characters is enough to tell two states apart in a trace.
+    """
+    body = "|".join(f"{r.start_s:.3f}{r.end_s:.3f}{r.text}" for r in rows)
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()[:12]
+
+
 def apply_transcriptions(
     segments: tuple[Segment, ...],
     rows: tuple[TranscriptRow, ...],
@@ -144,7 +156,12 @@ def apply_transcriptions(
     """
     from vuc.caption_fusion import fuse_audio_index
 
-    stats = {"rows": len(rows), "regions_rewritten": 0, "regions_guarded": 0}
+    stats = {
+        "rows": len(rows),
+        "digest": rows_digest(rows),
+        "regions_rewritten": 0,
+        "regions_guarded": 0,
+    }
     if not rows:
         return segments, stats
     cues = tuple(CaptionCue(row.start_s, row.text) for row in rows if row.text.strip())

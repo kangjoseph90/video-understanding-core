@@ -525,6 +525,11 @@ def run_video(
         "vlm_model": getattr(client, "model", None),
         "vlm_base_url": getattr(client, "base_url", None),
         "hints": None if hints is None else hints.to_dict(),
+        # Which accumulated state this report was written from. The prompt
+        # improves as the agent transcribes, so the report only reproduces
+        # alongside the rows it saw.
+        "accumulated_transcripts": transcript_stats["rows"],
+        "accumulated_digest": transcript_stats["digest"],
         "latency_s": round(time.monotonic() - e2e_started, 3),
         **repair_stats,
         # Measured this run: 0 when the index cache was reused.

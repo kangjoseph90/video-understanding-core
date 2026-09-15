@@ -126,3 +126,23 @@ def test_no_accumulation_leaves_the_timeline_alone() -> None:
 
     assert updated == segments
     assert stats["rows"] == 0
+
+
+def test_the_state_a_run_rendered_against_is_identifiable() -> None:
+    """The prompt depends on what the agent has learned, so the report only
+    reproduces alongside the state it was written from."""
+    from vuc.transcripts import rows_digest
+
+    one = (row(1.0, "first"),)
+    two = (row(1.0, "first"), row(5.0, "second"))
+
+    assert rows_digest(one) != rows_digest(two)
+    assert rows_digest(one) == rows_digest((row(1.0, "first"),))
+    assert rows_digest(()) == rows_digest(())
+
+
+def test_the_digest_travels_with_the_stats() -> None:
+    segments = (speech(0.0, 30.0, "heard"),)
+    _, stats = apply_transcriptions(segments, (row(2.0, "learned"),), align_ratio_min=0.2)
+
+    assert len(stats["digest"]) == 12
