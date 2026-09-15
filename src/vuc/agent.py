@@ -8,12 +8,7 @@ from typing import Any
 
 from vuc.config import AppConfig
 from vuc.hints import VideoHints
-from vuc.index_text import (
-    AUDIO_INDEX_LABEL,
-    TEXT_INDEX_LABEL,
-    render_audio_index,
-    render_text_index,
-)
+from vuc.index_text import AUDIO_INDEX_LABEL, TEXT_INDEX_LABEL
 from vuc.llm import (
     ChatCompletionsClient,
     ChatResult,
@@ -162,26 +157,36 @@ def run_agent_loop(
     *,
     query: str,
     index: VideoIndex,
+    audio_index: str,
+    text_index: str,
     config: AppConfig,
     service: ToolService,
     client: ChatCompletionsClient,
     hints: VideoHints | None = None,
+    prompt_path: Path | None = None,
 ) -> tuple[str, dict[str, Any]]:
+    """The index arrives already rendered.
+
+    Rendering is where a caption track and, later, the agent's own accumulated
+    transcriptions are applied, so it happens once in the caller rather than
+    here -- the tool service still works from the stored index, whose VAD split
+    is what an ASR request is routed by.
+    """
     initial_images = [Path(path) for path in index.visual.montages]
     budget = AgentBudget.start(config)
     trace = service.trace
+    body = build_prompt_body(
+        query,
+        index.video.duration_s,
+        audio_index=audio_index,
+        text_index=text_index,
+        hints=hints,
+    )
+    if prompt_path is not None:
+        prompt_path.write_text(body + "\n", encoding="utf-8")
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt()},
-        _initial_user_message(
-            build_prompt_body(
-                query,
-                index.video.duration_s,
-                audio_index=render_audio_index(index.audio.segments),
-                text_index=render_text_index(index.text.cues),
-                hints=hints,
-            ),
-            initial_images,
-        ),
+        _initial_user_message(body, initial_images),
     ]
     final_text = ""
     stop_reason: str | None = None

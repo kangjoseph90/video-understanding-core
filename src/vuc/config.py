@@ -146,6 +146,50 @@ class OCRConfig:
 
 
 @dataclass(frozen=True)
+class CaptionsConfig:
+    """When a channel-provided caption track may correct what we observed.
+
+    Every field changes what the index says, so all of them belong in the
+    cache key. Thresholds are deliberately far from the measured values: the
+    manifest separates 0.011 from 0.917 on VAD overlap and 0.894 from 0.501 on
+    OCR match, so nothing here is finely tuned.
+    """
+
+    enabled: bool = True
+    vad_overlap_min: float = 0.6
+    ocr_match_min: float = 0.7
+    script_ratio_min: float = 0.05
+    ocr_window_s: float = 3.0
+    align_ratio_min: float = 0.2
+    scope_ratio_min: float = 0.8
+    scope_ratio_max: float = 1.25
+    text_match_min: float = 0.55
+    window_s: float = 30.0
+    window_min_cues: int = 3
+
+    def attribution(self) -> Any:
+        """The runtime settings object the fusion pass takes.
+
+        Imported lazily so the config module stays free of the pass that reads
+        it; this is the only direction the dependency should run.
+        """
+        from vuc.caption_fusion import AttributionConfig
+
+        return AttributionConfig(
+            vad_overlap_min=self.vad_overlap_min,
+            ocr_match_min=self.ocr_match_min,
+            script_ratio_min=self.script_ratio_min,
+            ocr_window_s=self.ocr_window_s,
+            align_ratio_min=self.align_ratio_min,
+            scope_ratio_min=self.scope_ratio_min,
+            scope_ratio_max=self.scope_ratio_max,
+            text_match_min=self.text_match_min,
+            window_s=self.window_s,
+            window_min_cues=self.window_min_cues,
+        )
+
+
+@dataclass(frozen=True)
 class FramesConfig:
     index_montage_n: int
     baseline_full_interval_s: float
@@ -227,6 +271,7 @@ class AppConfig:
     audio_events: AudioEventConfig
     visual_scan: VisualScanConfig
     ocr: OCRConfig
+    captions: CaptionsConfig
     frames: FramesConfig
     montage: MontageConfig
     vision_llm: VisionLLMConfig
@@ -284,6 +329,7 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
     audio_events = _section(data, "audio_events")
     visual_scan = _section(data, "visual_scan")
     ocr = _section(data, "ocr")
+    captions = data.get("captions") if isinstance(data.get("captions"), dict) else {}
     frames = _section(data, "frames")
     montage = _section(data, "montage")
     vision_llm = _section(data, "vision_llm")
@@ -379,6 +425,19 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
                 for language, entry in (ocr.get("rec_by_language") or {}).items()
                 if isinstance(entry, dict)
             },
+        ),
+        captions=CaptionsConfig(
+            enabled=bool(captions.get("enabled", True)),
+            vad_overlap_min=float(captions.get("vad_overlap_min", 0.6)),
+            ocr_match_min=float(captions.get("ocr_match_min", 0.7)),
+            script_ratio_min=float(captions.get("script_ratio_min", 0.05)),
+            ocr_window_s=float(captions.get("ocr_window_s", 3.0)),
+            align_ratio_min=float(captions.get("align_ratio_min", 0.2)),
+            scope_ratio_min=float(captions.get("scope_ratio_min", 0.8)),
+            scope_ratio_max=float(captions.get("scope_ratio_max", 1.25)),
+            text_match_min=float(captions.get("text_match_min", 0.55)),
+            window_s=float(captions.get("window_s", 30.0)),
+            window_min_cues=int(captions.get("window_min_cues", 3)),
         ),
         frames=FramesConfig(
             index_montage_n=int(frames["index_montage_n"]),

@@ -84,6 +84,23 @@ indexer:
   cpu_threads: 2
   batch_size_s: 60
 
+captions:
+  # A channel-provided caption track may correct the transcript or the screen
+  # text, but only after it is judged to be one or the other. Thresholds sit
+  # far from the measured values; see src/vuc/caption_fusion.py.
+  enabled: true
+  vad_overlap_min: 0.6
+  ocr_match_min: 0.7
+  script_ratio_min: 0.05
+  ocr_window_s: 3.0
+  align_ratio_min: 0.2
+  scope_ratio_min: 0.8
+  scope_ratio_max: 1.25
+  text_match_min: 0.55
+  # Each caption line is routed over its neighbourhood, not the whole track.
+  window_s: 30.0
+  window_min_cues: 3
+
 frames:
   index_montage_n: 3
   baseline_full_interval_s: 1

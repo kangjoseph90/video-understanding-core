@@ -156,6 +156,11 @@ class VideoMetadata:
 class VideoIndex:
     """Three separate indexes over one video, plus what the file itself is.
 
+    This is what processing the video produced and nothing else. Anything that
+    arrived alongside the file -- channel metadata, a caption track -- is
+    applied when the prompt is built, not folded in here, so the index stays a
+    function of the video and the processing settings alone.
+
     They are kept apart on purpose. The audio index and the text index are
     independent observers with their own units, their own failure modes and
     their own line formats; folding them into one list made the text look like
