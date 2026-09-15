@@ -296,7 +296,7 @@ python scripts/fetch_captions.py --manifest eval/youtube-field-eval.yaml
 다음 질의는 첫 질의와 똑같은 SenseVoice 텍스트에서 출발했습니다. field eval에서 실질
 기여였던 고유명사 교정 2건도 그렇게 사라졌습니다.
 
-이제 각 호출의 문장이 `fusion/asr.jsonl`에 쌓입니다. 인덱스가 아니라 오디오 옆에 두는
+이제 각 호출의 문장이 `transcripts.jsonl`에 쌓입니다. 인덱스가 아니라 오디오 옆에 두는
 것은 인덱스가 영상을 처리한 결과이고 이건 나중 패스가 알아낸 것이기 때문이며, region
 번호가 아니라 **시간**으로 기록하므로 VAD 설정이 바뀌어도 재투영됩니다.
 
