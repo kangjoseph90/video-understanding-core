@@ -303,7 +303,7 @@ def test_non_speech_regions_are_never_touched() -> None:
     )
     lines, _ = place(track((1.0, "right"), (2.0, "words")))
 
-    fused, stats = fuse_audio_index(segments, lines, config=CONFIG)
+    fused, stats = fuse_audio_index(segments, lines, align_ratio_min=CONFIG.align_ratio_min)
 
     assert fused[1] == segments[1]
     assert fused[0].text == "right words"
@@ -314,7 +314,7 @@ def test_fusion_preserves_every_field_but_the_text() -> None:
     original = Segment(0.0, 5.0, "old", "ko", emotion="happy", events=("laugh",), raw_text="raw")
     lines, _ = place(track((1.0, "old"), (2.0, "new")))
 
-    fused, _ = fuse_audio_index((original,), lines, config=CONFIG)
+    fused, _ = fuse_audio_index((original,), lines, align_ratio_min=CONFIG.align_ratio_min)
 
     assert fused[0].text == "old new"
     assert fused[0].language == "ko"
@@ -327,7 +327,9 @@ def test_fusion_preserves_every_field_but_the_text() -> None:
 def test_a_recovered_empty_region_is_counted_as_such() -> None:
     lines, _ = place(track((1.0, "found"), (2.0, "speech")))
 
-    fused, stats = fuse_audio_index((speech(0.0, 5.0, ""),), lines, config=CONFIG)
+    fused, stats = fuse_audio_index(
+        (speech(0.0, 5.0, ""),), lines, align_ratio_min=CONFIG.align_ratio_min
+    )
 
     assert fused[0].text == "found speech"
     assert stats["regions_recovered"] == 1
@@ -338,7 +340,7 @@ def test_the_guard_is_reported_rather_than_silently_skipping() -> None:
     segments = (speech(0.0, 5.0, "the quick brown fox jumps over"),)
     lines, _ = place(track((1.0, "completely"), (2.0, "unrelated"), (3.0, "advertising")))
 
-    fused, stats = fuse_audio_index(segments, lines, config=CONFIG)
+    fused, stats = fuse_audio_index(segments, lines, align_ratio_min=CONFIG.align_ratio_min)
 
     assert fused == segments
     assert stats["regions_guarded"] == 1

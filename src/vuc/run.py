@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,7 @@ from vuc.pipeline import SCHEMA_VERSION, index_video
 from vuc.report import normalize_report, parse_report_json, write_report
 from vuc.tools import ToolService
 from vuc.trace import TraceWriter
+from vuc.transcripts import apply_transcriptions, load_rows
 from vuc.vad import VADProvider
 
 
@@ -405,15 +407,32 @@ def run_video(
     # The stored index is what the video produced; a caption track corrects it
     # only on the way into the prompt. The cached .txt files stay the plain
     # index, and what was actually sent is written beside this run's trace.
+    settings = config.captions.attribution()
+    # The agent's own transcriptions go on first and the channel's captions
+    # over them, so a caption still wins where it reaches and what the agent
+    # already paid for fills the rest. Each query leaves the next one a better
+    # index than it found.
+    learned = load_rows(cache.transcripts_path)
+    base, transcript_stats = apply_transcriptions(
+        index.audio.segments, learned, align_ratio_min=settings.align_ratio_min
+    )
     overlay = overlay_captions(
-        index,
+        replace(index, audio=AudioIndex(base)),
         load_caption_track(video_path) if config.captions.enabled else None,
         audio_language=hints.language if hints else None,
-        config=config.captions.attribution(),
+        config=settings,
     )
     rendered_audio = render_audio_index(overlay.segments)
     rendered_text = render_text_index(overlay.cues)
     prompt_path = run_dir / "prompt.txt"
+    if transcript_stats["rows"]:
+        TraceWriter(trace_path).write(
+            step="render",
+            event="accumulated_transcripts",
+            arguments={"path": str(cache.transcripts_path)},
+            result_summary=transcript_stats,
+            duration_ms=0,
+        )
     if overlay.applied:
         # The verdict and the counts are the only record of why this run's
         # prompt differs from the stored index. They are not in index.json any

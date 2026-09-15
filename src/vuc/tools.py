@@ -24,6 +24,7 @@ from vuc.media import extract_audio_segment
 from vuc.models import NON_SPEECH, SPEECH, VideoIndex
 from vuc.timeline import Span
 from vuc.trace import TraceWriter
+from vuc.transcripts import TranscriptRow, append_rows, rows_from_segments
 
 VIEW_FRAMES_SCHEMA = {
     "type": "function",
@@ -331,6 +332,17 @@ class ToolService:
         kept = [region for region in clipped if region.span.duration >= MIN_TOOL_REGION_S]
         return kept or [Region(span, SPEECH)]
 
+    def _region_bounds(self, region: Region) -> tuple[float, float]:
+        """The VAD region this clip came out of, before the request clipped it.
+
+        Stored so a later call that heard more of the same region can be
+        preferred over this one.
+        """
+        for segment in self.index.audio.segments:
+            if segment.end > region.span.start and segment.start < region.span.end:
+                return (segment.start, segment.end)
+        return (region.span.start, region.span.end)
+
     def _region_result(
         self,
         region: Region,
@@ -411,6 +423,7 @@ class ToolService:
         language_hint = self._language_hint(start, end)
         segments: list[dict[str, Any]] = []
         results: list[ASRResult] = []
+        recorded: list[TranscriptRow] = []
         asr_elapsed = 0.0
         speech_s = 0.0
         for index, region in enumerate(self._regions(Span(start, end))):
@@ -430,6 +443,16 @@ class ToolService:
             if result is not None:
                 results.append(result)
                 speech_s += region.span.duration
+                # Keep what this call heard, with how much of the region it
+                # covered: that is what decides between two accounts later.
+                recorded.extend(
+                    rows_from_segments(
+                        lines,
+                        region=self._region_bounds(region),
+                        clip=(region.span.start, region.span.end),
+                        model=result.model,
+                    )
+                )
 
         segments.sort(key=lambda item: (item["start_s"], item["end_s"]))
         provider = results[0].provider if results else self.provider_name
@@ -454,6 +477,7 @@ class ToolService:
             "cache_hit": False,
         }
         self.cache.write_json(result_path, data)
+        append_rows(self.cache.transcripts_path, recorded)
         # Model time for the whole call, tagger included: it is excluded from
         # the agent's wall-clock budget for the same reason the ASR time is.
         self.asr_processing_s += asr_elapsed

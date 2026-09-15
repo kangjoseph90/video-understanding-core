@@ -436,3 +436,57 @@ def test_the_run_records_what_it_sent_and_why(tmp_path: Path) -> None:
     assert summary["verdict"] == "speech_transcript"
     assert summary["routing"] == {"audio": 3, "text": 0, "drop": 0}
     assert summary["fusion"]["audio"]["regions_rewritten"] == 1
+
+
+def test_a_transcription_call_makes_the_next_run_better(tmp_path: Path) -> None:
+    """The point of keeping the rows: the index the agent is handed improves.
+
+    Layered under the captions, so a channel's own spelling still wins where it
+    reaches and the accumulated work fills the rest.
+    """
+    from dataclasses import replace as dataclass_replace
+
+    from vuc.caption_fusion import overlay_captions
+    from vuc.captions import load_caption_track
+    from vuc.models import AudioIndex
+    from vuc.transcripts import TranscriptRow, append_rows, apply_transcriptions, load_rows
+
+    video = make_video(tmp_path / "sample.mp4")
+    write_captions(video, (3.0, "caption"), (4.0, "spoken"), (5.0, "words"))
+    config = load_config(write_config(tmp_path))
+    index, cache, _, _ = index_with_stubs(video, config, text="misheard words")
+    settings = config.captions.attribution()
+
+    append_rows(
+        cache.transcripts_path,
+        [
+            TranscriptRow(
+                start_s=3.0,
+                end_s=7.0,
+                text="whisper words",
+                region_start=2.0,
+                region_end=10.0,
+                clip_start=2.0,
+                clip_end=10.0,
+                model="large-v3-turbo",
+            )
+        ],
+    )
+
+    rows = load_rows(cache.transcripts_path)
+    base, stats = apply_transcriptions(
+        index.audio.segments, rows, align_ratio_min=settings.align_ratio_min
+    )
+    assert stats["regions_rewritten"] == 1
+    assert "whisper words" in render_audio_index(base)
+    assert "misheard" not in render_audio_index(base)
+
+    overlay = overlay_captions(
+        dataclass_replace(index, audio=AudioIndex(base)),
+        load_caption_track(video),
+        audio_language="en",
+        config=settings,
+    )
+    final = render_audio_index(overlay.segments)
+    assert "caption spoken words" in final
+    assert "whisper" not in final

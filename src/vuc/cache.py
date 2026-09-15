@@ -37,6 +37,10 @@ class VideoCache:
         self.text_frames_dir = self.root / "text_frames"
         self.tool_frames_dir = self.root / "tool_frames"
         self.advanced_asr_dir = self.root / "advanced_asr"
+        # What the agent's transcription calls have taught us, kept beside the
+        # audio rather than in the index: the index is what processing the
+        # video produced, this is what a later pass learned.
+        self.transcripts_path = self.root / "fusion" / "asr.jsonl"
         self.runs_dir = self.root / "runs"
 
     def ensure(self) -> None:
@@ -46,6 +50,7 @@ class VideoCache:
         self.text_frames_dir.mkdir(parents=True, exist_ok=True)
         self.tool_frames_dir.mkdir(parents=True, exist_ok=True)
         self.advanced_asr_dir.mkdir(parents=True, exist_ok=True)
+        self.transcripts_path.parent.mkdir(parents=True, exist_ok=True)
         self.runs_dir.mkdir(parents=True, exist_ok=True)
 
     def run_dir(self, run_id: str) -> Path:

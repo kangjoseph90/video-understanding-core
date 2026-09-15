@@ -293,7 +293,7 @@ def fuse_audio_index(
     segments: tuple[Segment, ...],
     cues: tuple[CaptionCue, ...],
     *,
-    config: AttributionConfig,
+    align_ratio_min: float,
 ) -> tuple[tuple[Segment, ...], dict[str, Any]]:
     """Rewrite the speech regions these lines cover. Non-speech is untouched."""
     speech_indexes = [i for i, segment in enumerate(segments) if segment.kind == SPEECH]
@@ -317,7 +317,7 @@ def fuse_audio_index(
         stats["regions_covered"] += 1
         original = segments[index]
         fused = fuse_region(
-            original.text, [cue.text for cue in bucket], align_ratio_min=config.align_ratio_min
+            original.text, [cue.text for cue in bucket], align_ratio_min=align_ratio_min
         )
         if normalize(fused) == normalize(original.text):
             # Either the guard sent us back to the ASR text or the two agreed;
@@ -479,7 +479,7 @@ def overlay_captions(
             text_rows = [(c, s) for c, s, d in rows if d == TEXT]
             if audio_rows:
                 segments, fusion[AUDIO] = fuse_audio_index(
-                    segments, tuple(audio_rows), config=config
+                    segments, tuple(audio_rows), align_ratio_min=config.align_ratio_min
                 )
             if text_rows:
                 chosen, chosen_spans = zip(*text_rows, strict=True)
