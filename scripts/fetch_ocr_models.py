@@ -40,7 +40,7 @@ def fetch(output_dir: Path) -> None:
         keys_path = output_dir / f"{name.removesuffix('_rec')}_dict.txt"
         source = Path(hf_hub_download(repo, "inference.onnx", revision=revision))
         metadata_path = Path(hf_hub_download(repo, "inference.yml", revision=revision))
-        metadata = yaml.safe_load(metadata_path.read_text())
+        metadata = yaml.safe_load(metadata_path.read_text(encoding="utf-8"))
         characters = metadata.get("PostProcess", {}).get("character_dict")
         if name.endswith("_rec") and not characters:
             raise SystemExit(f"{repo}@{revision} has no character_dict in inference.yml")

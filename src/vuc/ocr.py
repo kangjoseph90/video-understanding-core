@@ -100,7 +100,7 @@ def rapidocr_options(config: OCRConfig) -> dict[str, object]:
         # v6 uses ImageNet mean/std; feeding it the wheel's v4 defaults breaks it.
         import yaml
 
-        metadata = yaml.safe_load(Path(config.det_model_config_path).read_text())
+        metadata = yaml.safe_load(Path(config.det_model_config_path).read_text(encoding="utf-8"))
         for op in metadata["PreProcess"]["transform_ops"]:
             if "NormalizeImage" in op:
                 options["det_mean"] = op["NormalizeImage"]["mean"]

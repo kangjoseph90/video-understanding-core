@@ -29,6 +29,7 @@ def format_span(start_s: float, end_s: float) -> str:
 
 def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     candidates = (
+        "C:/Windows/Fonts/arialbd.ttf",
         "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     )
@@ -129,11 +130,17 @@ def extract_plain_frames(
         str(output_dir / f"{prefix}-%06d.jpg"),
     ]
     # A long video's selection can exceed the OS argument-length limit.
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".ffilter") as script:
+    # The file must be closed before ffmpeg opens it on Windows.
+    script = tempfile.NamedTemporaryFile(  # noqa: SIM115
+        mode="w", suffix=".ffilter", delete=False
+    )
+    try:
         script.write(filters)
-        script.flush()
+        script.close()
         command[-1:-1] = ["-/filter:v", script.name]
         completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    finally:
+        Path(script.name).unlink(missing_ok=True)
     if completed.returncode != 0:
         raise MediaError(f"frame extraction failed: {completed.stderr.strip()}")
     paths = sorted(output_dir.glob(f"{prefix}-*.jpg"))

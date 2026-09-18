@@ -138,11 +138,19 @@ def test_run_explicit_mode_ignores_short_duration(
     assert report["meta"]["mode"] == mode
     assert report["meta"]["cumulative_input_tokens"] == 100
     assert report["meta"]["output_tokens"] == 50
-    expected_cost = (
-        100 * config.vision_llm.input_cost_per_million_usd
-        + 50 * config.vision_llm.output_cost_per_million_usd
-    ) / 1_000_000
-    assert report["meta"]["vlm_cost_usd"] == round(expected_cost, 6)
+    rates = (
+        config.vision_llm.input_cost_per_million_usd,
+        config.vision_llm.cached_input_cost_per_million_usd,
+        config.vision_llm.output_cost_per_million_usd,
+    )
+    if all(rate <= 0 for rate in rates):
+        assert report["meta"]["vlm_cost_usd"] is None
+    else:
+        expected_cost = (
+            100 * config.vision_llm.input_cost_per_million_usd
+            + 50 * config.vision_llm.output_cost_per_million_usd
+        ) / 1_000_000
+        assert report["meta"]["vlm_cost_usd"] == round(expected_cost, 6)
     assert report["meta"]["cached_input_tokens"] == 0
     assert report["meta"]["vlm_model"] == "stub-vlm"
     if mode == "baseline_full":
