@@ -10,3 +10,12 @@ build/
 
 # OCR recognition models, fetched by scripts/fetch_ocr_models.py
 models/
+
+# Video media files
+*.mp4
+*.mkv
+*.webm
+*.mov
+
+# Local evaluation sweep results
+eval/*sweep*.jsonl
