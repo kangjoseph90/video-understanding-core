@@ -34,11 +34,14 @@ def test_the_worker_starts_and_reads_a_frame(tmp_path: Path) -> None:
     engine = IsolatedOCREngine(config)
     try:
         read = engine.read_many([frame, frame])
+        cropped = engine.read_many([frame, frame], cropped=True)
     finally:
         engine.close()
 
     assert len(read) == 2
+    assert len(cropped) == 2
     assert any("HELLO" in line.text.upper() for line in read[0])
+    assert any("HELLO" in line.text.upper() for line in cropped[0])
 
 
 def test_a_worker_that_cannot_start_says_so(tmp_path: Path) -> None:

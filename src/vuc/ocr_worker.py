@@ -39,7 +39,9 @@ def main() -> int:
     from vuc.ocr import RapidOCREngine
 
     try:
-        settings = json.loads(sys.stdin.readline())
+        received = json.loads(sys.stdin.readline())
+        crop_workers = max(1, int(received.get("crop_workers", received.get("workers", 1))))
+        settings = {key: value for key, value in received.items() if key != "crop_workers"}
         workers = max(1, int(settings.get("workers", 1)))
         threads = max(1, (os.cpu_count() or 1) // workers)
         engine = RapidOCREngine(OCRConfig(**settings), threads=threads)
@@ -49,6 +51,8 @@ def main() -> int:
     reply({"ready": True})
 
     pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="vuc-ocr")
+    crop_engine = None
+    crop_pool = None
     for line in sys.stdin:
         request = line.strip()
         if not request:
@@ -56,13 +60,33 @@ def main() -> int:
         try:
             payload = json.loads(request)
             paths = [Path(item) for item in payload["paths"]]
-            reader = partial(engine.read, cropped=bool(payload.get("cropped", False)))
-            batch = list(pool.map(reader, paths))
+            cropped = bool(payload.get("cropped", False))
+            selected_engine = engine
+            selected_pool = pool
+            if cropped and settings.get("device") in {"dml", "directml"}:
+                if crop_engine is None:
+                    cpu_settings = {**settings, "device": "cpu", "workers": crop_workers}
+                    crop_threads = max(1, (os.cpu_count() or 1) // crop_workers)
+                    crop_engine = RapidOCREngine(
+                        OCRConfig(**cpu_settings),
+                        threads=crop_threads,
+                    )
+                    crop_pool = ThreadPoolExecutor(
+                        max_workers=crop_workers,
+                        thread_name_prefix="vuc-ocr-crop",
+                    )
+                selected_engine = crop_engine
+                assert crop_pool is not None
+                selected_pool = crop_pool
+            reader = partial(selected_engine.read, cropped=cropped)
+            batch = list(selected_pool.map(reader, paths))
         except Exception as exc:  # noqa: BLE001 - one bad batch is not fatal
             reply({"error": f"{type(exc).__name__}: {exc}"})
             continue
         reply({"frames": [[asdict(item) for item in lines] for lines in batch]})
     pool.shutdown(wait=False)
+    if crop_pool is not None:
+        crop_pool.shutdown(wait=False)
     return 0
 
 

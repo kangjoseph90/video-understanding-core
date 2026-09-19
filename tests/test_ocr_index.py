@@ -158,10 +158,24 @@ def test_rapidocr_options_sets_device_acceleration() -> None:
     from dataclasses import replace
 
     config_dml = replace(CONFIG, device="dml", rec_model_path="/models/rec.onnx")
-    assert rapidocr_options(config_dml).get("use_dml") is True
+    dml_options = rapidocr_options(config_dml)
+    assert {key: dml_options[key] for key in ("det_use_dml", "cls_use_dml", "rec_use_dml")} == {
+        "det_use_dml": True,
+        "cls_use_dml": True,
+        "rec_use_dml": True,
+    }
+    assert "use_dml" not in dml_options
 
     config_cuda = replace(CONFIG, device="cuda", rec_model_path="/models/rec.onnx")
-    assert rapidocr_options(config_cuda).get("use_cuda") is True
+    cuda_options = rapidocr_options(config_cuda)
+    assert {
+        key: cuda_options[key] for key in ("det_use_cuda", "cls_use_cuda", "rec_use_cuda")
+    } == {
+        "det_use_cuda": True,
+        "cls_use_cuda": True,
+        "rec_use_cuda": True,
+    }
+    assert "use_cuda" not in cuda_options
 
 
 def test_whitespace_is_collapsed_before_lines_are_compared() -> None:

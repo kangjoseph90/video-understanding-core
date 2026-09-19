@@ -96,10 +96,13 @@ def rapidocr_options(config: OCRConfig) -> dict[str, object]:
         ("rec_keys_path", config.rec_keys_path),
     )
     options: dict[str, object] = {key: value for key, value in named if value}
+    # RapidOCR accepts a global ``use_dml``/``use_cuda`` keyword but leaves it
+    # in the Global section; the ONNX sessions read the per-stage values.  The
+    # unprefixed spelling therefore silently runs every model on CPU.
     if config.device in {"dml", "directml"}:
-        options["use_dml"] = True
+        options.update({f"{stage}_use_dml": True for stage in ("det", "cls", "rec")})
     elif config.device == "cuda":
-        options["use_cuda"] = True
+        options.update({f"{stage}_use_cuda": True for stage in ("det", "cls", "rec")})
     if config.det_model_config_path:
         # Detector normalisation is part of the model, not a tuning knob.
         # v6 uses ImageNet mean/std; feeding it the wheel's v4 defaults breaks it.
@@ -239,7 +242,13 @@ class IsolatedOCREngine:
 
     def __init__(self, config: OCRConfig) -> None:
         self.name = config.engine
-        self.batch_size = max(1, config.workers * 4)
+        # DirectML crashes the worker when one ONNX session is entered from
+        # multiple Python threads concurrently. Full frames therefore use one
+        # GPU host caller; small crop reads stay on the parallel CPU path, where
+        # four short jobs beat DirectML dispatch overhead on this workload.
+        configured_workers = max(1, config.workers)
+        workers = 1 if config.device in {"dml", "directml"} else configured_workers
+        self.batch_size = configured_workers * 4
         self._process = subprocess.Popen(
             [sys.executable, "-m", "vuc.ocr_worker"],
             stdin=subprocess.PIPE,
@@ -249,7 +258,14 @@ class IsolatedOCREngine:
             bufsize=1,
         )
         settings = {key: value for key, value in vars(config).items() if key != "rec_by_language"}
-        handshake = self._exchange({**settings, "rec_by_language": {}})
+        handshake = self._exchange(
+            {
+                **settings,
+                "workers": workers,
+                "crop_workers": configured_workers,
+                "rec_by_language": {},
+            }
+        )
         if "error" in handshake:
             self.close()
             raise OCRError(f"OCR worker failed to start: {handshake['error']}")
