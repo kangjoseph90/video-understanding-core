@@ -167,15 +167,24 @@ def extract_ocr_frames(
     recognition_width: int,
     duration_s: float,
     hwaccel: str = "none",
-) -> tuple[list[tuple[float, Path]], list[tuple[float, Path]]]:
-    """Decode once into the dense OCR scan and its coarse recognition clock.
+) -> tuple[
+    list[tuple[float, Path]],
+    list[tuple[float, Path]],
+    list[tuple[float, Path]],
+]:
+    """Decode once into dense scan and recognition frames plus the coarse view.
 
     The two clocks used to be separate ffmpeg processes, so every frame in the
     video was decoded twice before OCR began.  Splitting the decoded stream
     preserves each clock's filters and resolution while sharing demux/decode.
+    Keeping recognition frames at the dense rate also prevents the later OCR
+    rescan from decoding the whole video a second time.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     base_fps = min(1.0, scan_fps)
+    ratio = scan_fps / base_fps
+    base_step = round(ratio)
+    shared_base_clock = math.isclose(ratio, base_step, rel_tol=0.0, abs_tol=1e-9)
 
     def branch(label: str, fps: float, width: int, output: str) -> str:
         shift = 0.5 - 0.5 / fps
@@ -184,13 +193,18 @@ def extract_ocr_frames(
             f"scale=w='min(iw,{width})':h=-2[{output}]"
         )
 
-    filters = ";".join(
-        (
-            "[0:v]split=2[scan_in][base_in]",
-            branch("scan_in", scan_fps, scan_width, "scan"),
-            branch("base_in", base_fps, recognition_width, "base"),
-        )
+    split = (
+        "[0:v]split=2[scan_in][recognition_in]"
+        if shared_base_clock
+        else "[0:v]split=3[scan_in][recognition_in][base_in]"
     )
+    filters = [
+        split,
+        branch("scan_in", scan_fps, scan_width, "scan"),
+        branch("recognition_in", scan_fps, recognition_width, "recognition"),
+    ]
+    if not shared_base_clock:
+        filters.append(branch("base_in", base_fps, recognition_width, "base"))
     command = [
         require_binary("ffmpeg"),
         "-hide_banner",
@@ -205,7 +219,7 @@ def extract_ocr_frames(
             "-i",
             str(video_path),
             "-filter_complex",
-            filters,
+            ";".join(filters),
             "-map",
             "[scan]",
             "-fps_mode",
@@ -214,14 +228,26 @@ def extract_ocr_frames(
             "3",
             str(output_dir / "text-scan-%06d.jpg"),
             "-map",
-            "[base]",
+            "[recognition]",
             "-fps_mode",
             "vfr",
             "-q:v",
             "3",
-            str(output_dir / "text-base-%06d.jpg"),
+            str(output_dir / "text-recognition-%06d.jpg"),
         ]
     )
+    if not shared_base_clock:
+        command.extend(
+            [
+                "-map",
+                "[base]",
+                "-fps_mode",
+                "vfr",
+                "-q:v",
+                "3",
+                str(output_dir / "text-base-%06d.jpg"),
+            ]
+        )
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode != 0:
         raise MediaError(f"OCR frame extraction failed: {completed.stderr.strip()}")
@@ -233,7 +259,19 @@ def extract_ocr_frames(
             for index, path in enumerate(paths)
         ]
 
-    return rows("text-scan", scan_fps), rows("text-base", base_fps)
+    scan_frames = rows("text-scan", scan_fps)
+    recognition_frames = rows("text-recognition", scan_fps)
+    if len(scan_frames) != len(recognition_frames):
+        raise MediaError(
+            "OCR scan and recognition clocks disagree: "
+            f"{len(scan_frames)} != {len(recognition_frames)}"
+        )
+    base_frames = (
+        recognition_frames[::base_step]
+        if shared_base_clock
+        else rows("text-base", base_fps)
+    )
+    return scan_frames, base_frames, recognition_frames
 
 
 def montage_cell_size(width: int, height: int, n: int) -> tuple[int, int]:

@@ -28,7 +28,7 @@ from typing import Protocol
 from PIL import Image, ImageFilter
 
 from vuc.config import OCRConfig
-from vuc.frames import extract_ocr_frames, extract_plain_frames
+from vuc.frames import extract_ocr_frames
 from vuc.models import TextCue
 
 VERTICAL_BANDS = ((0.33, "top"), (0.66, "middle"), (1.01, "bottom"))
@@ -82,6 +82,44 @@ class OCREngine(Protocol):
     def read_many(
         self, image_paths: Sequence[Path], *, cropped: bool = False
     ) -> list[list[OCRLine]]: ...
+
+
+@dataclass(frozen=True)
+class PreparedOCRFrames:
+    scan: list[tuple[float, Path]]
+    base: list[tuple[float, Path]]
+    recognition: list[tuple[float, Path]]
+    decode_s: float
+
+
+def prepare_ocr_frames(
+    video_path: Path,
+    output_dir: Path,
+    *,
+    config: OCRConfig,
+    duration_s: float,
+    hwaccel: str = "none",
+) -> PreparedOCRFrames:
+    """Decode OCR inputs before the visual scan has finished planning reads."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for stale in output_dir.glob("text-*.jpg"):
+        stale.unlink()
+    started = time.monotonic()
+    try:
+        scan, base, recognition = extract_ocr_frames(
+            video_path,
+            output_dir,
+            scan_fps=config.scan_fps,
+            scan_width=config.scan_width,
+            recognition_width=config.recognition_width,
+            duration_s=duration_s,
+            hwaccel=hwaccel,
+        )
+    except Exception:
+        for path in output_dir.glob("text-*.jpg"):
+            path.unlink(missing_ok=True)
+        raise
+    return PreparedOCRFrames(scan, base, recognition, time.monotonic() - started)
 
 
 def rapidocr_options(config: OCRConfig) -> dict[str, object]:
@@ -493,28 +531,26 @@ def scan_text(
     required_s: Sequence[float] = (),
     hwaccel: str = "none",
     timings: dict[str, float] | None = None,
+    prepared: PreparedOCRFrames | None = None,
 ) -> tuple[list[Observation], int]:
     """Read the video on its own clock, and only where the text moved.
 
     Returns the observations and how many frames were sampled to get them, so
     the caller can record what the change detection actually saved.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for stale in output_dir.glob("text-*.jpg"):
-        stale.unlink()
     try:
-        phase_started = time.monotonic()
-        frames, base_frames = extract_ocr_frames(
+        prepared = prepared or prepare_ocr_frames(
             video_path,
             output_dir,
-            scan_fps=config.scan_fps,
-            scan_width=config.scan_width,
-            recognition_width=config.recognition_width,
+            config=config,
             duration_s=duration_s,
             hwaccel=hwaccel,
         )
+        frames = prepared.scan
+        base_frames = prepared.base
+        recognition_frames = prepared.recognition
         if timings is not None:
-            timings["initial_decode_s"] = time.monotonic() - phase_started
+            timings["initial_decode_s"] = prepared.decode_s
 
         phase_started = time.monotonic()
         base_picked = ocr_candidates(base_frames, config=config, required_s=required_s)
@@ -558,17 +594,7 @@ def scan_text(
             timings["region_plan_s"] = time.monotonic() - phase_started
 
         phase_started = time.monotonic()
-        extra_frames = extract_plain_frames(
-            video_path,
-            output_dir,
-            prefix="text-extra",
-            fps=config.scan_fps,
-            width=config.recognition_width,
-            duration_s=duration_s,
-            indices=available,
-            first_center_s=0.5,
-            hwaccel=hwaccel,
-        )
+        extra_frames = [recognition_frames[index] for index in available]
         if timings is not None:
             timings["extra_decode_s"] = time.monotonic() - phase_started
         paths.update(zip(available, (path for _, path in extra_frames), strict=True))

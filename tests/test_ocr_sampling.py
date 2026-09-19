@@ -332,7 +332,16 @@ def test_joint_ocr_decode_preserves_both_independent_outputs(tmp_path):
         duration_s=2,
         first_center_s=0.5,
     )
-    dense, base = extract_ocr_frames(
+    expected_recognition = extract_plain_frames(
+        video,
+        tmp_path / "expected-recognition",
+        prefix="f",
+        fps=4,
+        width=128,
+        duration_s=2,
+        first_center_s=0.5,
+    )
+    dense, base, recognition = extract_ocr_frames(
         video,
         tmp_path / "joint",
         scan_fps=4,
@@ -342,9 +351,14 @@ def test_joint_ocr_decode_preserves_both_independent_outputs(tmp_path):
     )
     assert [timestamp for timestamp, _ in dense] == [timestamp for timestamp, _ in expected_dense]
     assert [timestamp for timestamp, _ in base] == [timestamp for timestamp, _ in expected_base]
+    assert [timestamp for timestamp, _ in recognition] == [
+        timestamp for timestamp, _ in expected_recognition
+    ]
     for actual, expected in zip(dense, expected_dense, strict=True):
         assert Image.open(actual[1]).tobytes() == Image.open(expected[1]).tobytes()
     for actual, expected in zip(base, expected_base, strict=True):
+        assert Image.open(actual[1]).tobytes() == Image.open(expected[1]).tobytes()
+    for actual, expected in zip(recognition, expected_recognition, strict=True):
         assert Image.open(actual[1]).tobytes() == Image.open(expected[1]).tobytes()
 
 

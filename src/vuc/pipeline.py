@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -43,7 +43,15 @@ from vuc.models import (
     VideoMetadata,
     VisualIndex,
 )
-from vuc.ocr import OCREngine, OCRError, create_ocr_engine, scan_text, text_cues
+from vuc.ocr import (
+    OCREngine,
+    OCRError,
+    PreparedOCRFrames,
+    create_ocr_engine,
+    prepare_ocr_frames,
+    scan_text,
+    text_cues,
+)
 from vuc.trace import TraceWriter
 from vuc.vad import VADProvider, create_vad, non_speech_view, speech_view
 from vuc.visual_scan import ScanResult, scan_video
@@ -259,7 +267,12 @@ def index_video(
         timings["audio_s"] = round(time.monotonic() - started, 3)
         return list(run.segments)
 
-    def index_text(scan: ScanResult) -> list[TextCue]:
+    def index_text(
+        scan: ScanResult,
+        engine: OCREngine | None,
+        engine_start_s: float,
+        prepared: Future[PreparedOCRFrames] | None = None,
+    ) -> list[TextCue]:
         """OCR over its own dense scan, read only where the text moved.
 
         The frames the montage uses are read regardless, and each cut gets a
@@ -270,8 +283,7 @@ def index_video(
         """
         started = time.monotonic()
         ocr_config = config.ocr.for_language(hint_language)
-        engine = ocr_engine or _build_ocr_engine(config, trace, language=hint_language)
-        phase_timings = {"engine_start_s": time.monotonic() - started}
+        phase_timings = {"engine_start_s": engine_start_s}
         counts["ocr_engine"] = None if engine is None else engine.name
         cues: list[TextCue] = []
         try:
@@ -291,6 +303,7 @@ def index_video(
                     required_s=required,
                     hwaccel=config.visual_scan.hwaccel,
                     timings=phase_timings,
+                    prepared=prepared.result() if prepared is not None else None,
                 )
                 tracking_started = time.monotonic()
                 cues = text_cues(observations, duration_s=duration_s, config=ocr_config)
@@ -336,9 +349,37 @@ def index_video(
         return cues
 
     def index_visual_and_text() -> tuple[ScanResult, list[Path], list[TextCue]]:
-        """One branch: OCR picks its frames using what the scan found."""
-        scan, montages = index_visual()
-        return scan, montages, index_text(scan)
+        """Overlap independent frame decoding, then plan OCR from the visual scan."""
+        engine_started = time.monotonic()
+        engine = ocr_engine or _build_ocr_engine(config, trace, language=hint_language)
+        engine_start_s = time.monotonic() - engine_started
+        if engine is None:
+            scan, montages = index_visual()
+            return scan, montages, index_text(scan, engine, engine_start_s)
+        ocr_config = config.ocr.for_language(hint_language)
+        handed_off = False
+        try:
+            with ThreadPoolExecutor(max_workers=2, thread_name_prefix="vuc-visual") as executor:
+                visual_future = executor.submit(index_visual)
+                prepared = executor.submit(
+                    prepare_ocr_frames,
+                    video_path,
+                    cache.text_frames_dir,
+                    config=ocr_config,
+                    duration_s=duration_s,
+                    hwaccel=config.visual_scan.hwaccel,
+                )
+                scan, montages = visual_future.result()
+                handed_off = True
+                cues = index_text(scan, engine, engine_start_s, prepared)
+        finally:
+            if not handed_off:
+                closer = getattr(engine, "close", None)
+                if callable(closer):
+                    closer()
+                for path in cache.text_frames_dir.glob("text-*.jpg"):
+                    path.unlink(missing_ok=True)
+        return scan, montages, cues
 
     def index_visual() -> tuple[ScanResult, list[Path]]:
         started = time.monotonic()
