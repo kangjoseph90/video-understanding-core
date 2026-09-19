@@ -85,6 +85,10 @@ def detect_shots(
         "-hide_banner",
         "-loglevel",
         "error",
+    ]
+    if config.hwaccel and config.hwaccel != "none":
+        command.extend(["-hwaccel", config.hwaccel])
+    command.extend([
         "-i",
         str(video_path),
         "-an",
@@ -93,7 +97,7 @@ def detect_shots(
         "-f",
         "null",
         "-",
-    ]
+    ])
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode != 0:
         raise MediaError(f"shot detection failed: {completed.stderr.strip()}")
@@ -197,6 +201,7 @@ def _extract_one(
     *,
     timestamp_s: float,
     width: int,
+    hwaccel: str = "none",
 ) -> Path | None:
     command = [
         require_binary("ffmpeg"),
@@ -204,6 +209,10 @@ def _extract_one(
         "-loglevel",
         "error",
         "-y",
+    ]
+    if hwaccel and hwaccel != "none":
+        command.extend(["-hwaccel", hwaccel])
+    command.extend([
         "-ss",
         f"{timestamp_s:.3f}",
         "-i",
@@ -215,7 +224,7 @@ def _extract_one(
         "-q:v",
         "3",
         str(output_path),
-    ]
+    ])
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode != 0 or not output_path.exists():
         return None
@@ -323,8 +332,18 @@ def _settled_frame(
     chosen: tuple[float, str] | None = None
     on_disk: tuple[float, str] | None = None
 
+    hwaccel_kw = {"hwaccel": config.hwaccel} if config.hwaccel and config.hwaccel != "none" else {}
     while moment < duration_s:
-        if _extract_one(video_path, output_path, timestamp_s=moment, width=width) is None:
+        if (
+            _extract_one(
+                video_path,
+                output_path,
+                timestamp_s=moment,
+                width=width,
+                **hwaccel_kw,
+            )
+            is None
+        ):
             break
         with Image.open(output_path) as source:
             image = source.convert("RGB")
@@ -355,7 +374,13 @@ def _settled_frame(
     # is by definition the same picture, so it can stand in for it and save a
     # decode; anything else has to be fetched again.
     if on_disk[0] != chosen[0] and hamming(on_disk[1], chosen[1]) > config.phash_distance:
-        _extract_one(video_path, output_path, timestamp_s=chosen[0], width=width)
+        _extract_one(
+            video_path,
+            output_path,
+            timestamp_s=chosen[0],
+            width=width,
+            **hwaccel_kw,
+        )
     return output_path, chosen[0]
 
 

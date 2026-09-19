@@ -154,6 +154,16 @@ def test_rapidocr_is_configured_with_flat_names_only() -> None:
     }
 
 
+def test_rapidocr_options_sets_device_acceleration() -> None:
+    from dataclasses import replace
+
+    config_dml = replace(CONFIG, device="dml", rec_model_path="/models/rec.onnx")
+    assert rapidocr_options(config_dml).get("use_dml") is True
+
+    config_cuda = replace(CONFIG, device="cuda", rec_model_path="/models/rec.onnx")
+    assert rapidocr_options(config_cuda).get("use_cuda") is True
+
+
 def test_whitespace_is_collapsed_before_lines_are_compared() -> None:
     assert normalize_text("  What   are\nthey used for? ") == "What are they used for?"
 

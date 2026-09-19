@@ -95,6 +95,10 @@ def rapidocr_options(config: OCRConfig) -> dict[str, object]:
         ("rec_keys_path", config.rec_keys_path),
     )
     options: dict[str, object] = {key: value for key, value in named if value}
+    if config.device in {"dml", "directml"}:
+        options["use_dml"] = True
+    elif config.device == "cuda":
+        options["use_cuda"] = True
     if config.det_model_config_path:
         # Detector normalisation is part of the model, not a tuning knob.
         # v6 uses ImageNet mean/std; feeding it the wheel's v4 defaults breaks it.
@@ -114,7 +118,7 @@ def rapidocr_options(config: OCRConfig) -> dict[str, object]:
 
 
 class RapidOCREngine:
-    """RapidOCR (ONNX Runtime): CPU-only, multilingual, no system packages."""
+    """RapidOCR (ONNX Runtime): CPU or GPU accelerated (DirectML/CUDA), multilingual."""
 
     name = "rapidocr"
 
@@ -134,6 +138,8 @@ class RapidOCREngine:
         if config.fallback_rec_model_path:
             from rapidocr_onnxruntime.ch_ppocr_rec import TextRecognizer
 
+            use_dml = config.device in {"dml", "directml"}
+            use_cuda = config.device == "cuda"
             self._fallback = TextRecognizer(
                 dict(
                     model_path=config.fallback_rec_model_path,
@@ -142,8 +148,8 @@ class RapidOCREngine:
                     rec_batch_num=6,
                     intra_op_num_threads=threads,
                     inter_op_num_threads=1,
-                    use_cuda=False,
-                    use_dml=False,
+                    use_cuda=use_cuda,
+                    use_dml=use_dml,
                 )
             )
 
@@ -468,6 +474,7 @@ def scan_text(
     config: OCRConfig,
     duration_s: float,
     required_s: Sequence[float] = (),
+    hwaccel: str = "none",
 ) -> tuple[list[Observation], int]:
     """Read the video on its own clock, and only where the text moved.
 
@@ -486,6 +493,7 @@ def scan_text(
             width=config.scan_width,
             duration_s=duration_s,
             first_center_s=0.5,
+            hwaccel=hwaccel,
         )
         base_frames = extract_plain_frames(
             video_path,
@@ -495,6 +503,7 @@ def scan_text(
             width=config.recognition_width,
             duration_s=duration_s,
             first_center_s=0.5,
+            hwaccel=hwaccel,
         )
         base_picked = ocr_candidates(base_frames, config=config, required_s=required_s)
         by_time = {timestamp: i for i, (timestamp, _) in enumerate(frames)}
@@ -536,6 +545,7 @@ def scan_text(
             duration_s=duration_s,
             indices=available,
             first_center_s=0.5,
+            hwaccel=hwaccel,
         )
         paths.update(zip(available, (path for _, path in extra_frames), strict=True))
         observations.extend(read_regions(frames, paths, plans, engine, output_dir))

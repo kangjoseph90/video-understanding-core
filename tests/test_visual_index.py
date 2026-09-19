@@ -204,7 +204,15 @@ class _Reel:
         self.pictures = pictures
         self.asked: list[float] = []
 
-    def extract(self, _video: Path, output: Path, *, timestamp_s: float, width: int) -> Path | None:
+    def extract(
+        self,
+        _video: Path,
+        output: Path,
+        *,
+        timestamp_s: float,
+        width: int,
+        hwaccel: str = "none",
+    ) -> Path | None:
         self.asked.append(timestamp_s)
         nearest = min(self.pictures, key=lambda moment: abs(moment - timestamp_s))
         self.pictures[nearest].save(output)

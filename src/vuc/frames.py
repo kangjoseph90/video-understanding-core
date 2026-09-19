@@ -77,6 +77,7 @@ def extract_plain_frames(
     duration_s: float,
     indices: list[int] | None = None,
     first_center_s: float | None = None,
+    hwaccel: str = "none",
 ) -> list[tuple[float, Path]]:
     """A flat sampling of the video, unmarked, for something else to read.
 
@@ -121,6 +122,10 @@ def extract_plain_frames(
         "-loglevel",
         "error",
         "-y",
+    ]
+    if hwaccel and hwaccel != "none":
+        command.extend(["-hwaccel", hwaccel])
+    command.extend([
         "-i",
         str(video_path),
         "-fps_mode",
@@ -128,7 +133,7 @@ def extract_plain_frames(
         "-q:v",
         "3",
         str(output_dir / f"{prefix}-%06d.jpg"),
-    ]
+    ])
     # A long video's selection can exceed the OS argument-length limit.
     # The file must be closed before ffmpeg opens it on Windows.
     script = tempfile.NamedTemporaryFile(  # noqa: SIM115
@@ -170,6 +175,7 @@ def extract_sampled_frames(
     fps: float,
     resolution: int,
     jpeg_quality: int,
+    hwaccel: str = "none",
 ) -> list[FrameArtifact]:
     output_dir.mkdir(parents=True, exist_ok=True)
     for old_frame in output_dir.glob("frame-*.jpg"):
@@ -181,6 +187,10 @@ def extract_sampled_frames(
         "-loglevel",
         "error",
         "-y",
+    ]
+    if hwaccel and hwaccel != "none":
+        command.extend(["-hwaccel", hwaccel])
+    command.extend([
         "-ss",
         f"{start_s:.3f}",
         "-i",
@@ -194,7 +204,7 @@ def extract_sampled_frames(
         "-q:v",
         "3",
         str(output_dir / "frame-%06d.jpg"),
-    ]
+    ])
     completed = subprocess.run(command, check=False, capture_output=True, text=True)
     if completed.returncode != 0:
         raise MediaError(f"frame extraction failed: {completed.stderr.strip()}")

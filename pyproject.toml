@@ -28,6 +28,11 @@ ocr = [
   "rapidocr-onnxruntime>=1.4.4,<2",
   "huggingface-hub>=0.27",
 ]
+ocr-directml = [
+  "rapidocr-onnxruntime>=1.4.4,<2",
+  "onnxruntime-directml>=1.18",
+  "huggingface-hub>=0.27",
+]
 audio-events = [
   "panns-inference>=0.1.1",
   "librosa>=0.10",

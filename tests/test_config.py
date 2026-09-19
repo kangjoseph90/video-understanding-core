@@ -24,8 +24,10 @@ def test_load_config_resolves_cache_relative_to_config() -> None:
     assert config.vad.window_max_s == 30
     assert config.audio_events.tagger == "panns"
     assert config.visual_scan.max_interval_s == 30
+    assert config.visual_scan.hwaccel == "none"
     assert config.ocr.enabled is True
     assert config.ocr.engine == "rapidocr"
+    assert config.ocr.device == "cpu"
     assert config.ocr.rec_model_path.endswith("PP-OCRv6_small_rec.onnx")
     assert config.ocr.for_language("ko").rec_model_path.endswith("korean_PP-OCRv5_rec.onnx")
     assert config.ocr.use_angle_cls is False
@@ -172,3 +174,32 @@ def test_load_config_rejects_out_of_range_temperature(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="vision_llm temperature must be between 0.0 and 2.0"):
         load_config(_with(tmp_path, "temperature: null", "temperature: 2.1"))
+
+
+def test_load_config_custom_hwaccel_and_ocr_device(tmp_path: Path) -> None:
+    path = _with(tmp_path, "hwaccel: none", "hwaccel: d3d11va")
+    text = path.read_text(encoding="utf-8").replace(
+        "device: cpu\n  scan_fps", "device: dml\n  scan_fps"
+    )
+    path.write_text(text, encoding="utf-8")
+    cfg = load_config(path)
+    assert cfg.visual_scan.hwaccel == "d3d11va"
+    assert cfg.ocr.device == "dml"
+
+
+def test_load_config_rejects_unsupported_hwaccel(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="unsupported visual_scan.hwaccel"):
+        load_config(_with(tmp_path, "hwaccel: none", "hwaccel: invalid_accel"))
+
+
+def test_load_config_rejects_unsupported_ocr_device(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    project_root = Path(__file__).parents[1]
+    path.write_text(
+        (project_root / "config.yaml")
+        .read_text(encoding="utf-8")
+        .replace("device: cpu\n  scan_fps", "device: rocm\n  scan_fps"),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="unsupported ocr.device"):
+        load_config(path)

@@ -1811,6 +1811,24 @@ wheels = [
 ]
 
 [[package]]
+name = "onnxruntime-directml"
+version = "1.24.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flatbuffers" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "protobuf" },
+    { name = "sympy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/be/90/99566dc6398028e7691a5b12720fd85f757a0901818b84599d28abb3f085/onnxruntime_directml-1.24.4-cp311-cp311-win_amd64.whl", hash = "sha256:96642a787e5a6f33bf043521c0f06eb1eb663f6b830e5862a2026d03f9c90543", size = 25106000, upload-time = "2026-03-17T21:47:15.438Z" },
+    { url = "https://files.pythonhosted.org/packages/88/ea/33814eb0ec96775eda4c1d30b0d86e91d7d2cd0d84c66d3915aef0e06fa3/onnxruntime_directml-1.24.4-cp312-cp312-win_amd64.whl", hash = "sha256:f2ecb68b7b7b259d2ef3112ae760149f9b5a1e7c0fbb73d539da6250a648a614", size = 25111930, upload-time = "2026-03-17T21:47:18.419Z" },
+    { url = "https://files.pythonhosted.org/packages/60/53/2bd2696fac19cf8ca55496a0bcfe431f3aff9579eabbb0e231dc238acf6f/onnxruntime_directml-1.24.4-cp313-cp313-win_amd64.whl", hash = "sha256:2f1031cb2281e5b27cca9efe0b9399317c7286e4d226f7a79d4ab79bbd94d19e", size = 25112253, upload-time = "2026-03-17T21:47:22.043Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/04/816932a3ade867a687e406716ca76e0774c6b921545b45818e3ebfcc54ce/onnxruntime_directml-1.24.4-cp314-cp314-win_amd64.whl", hash = "sha256:51d86bb949488e572b00422f344990a4a81d982416d73b6c0e4ced2bcd423d19", size = 25571098, upload-time = "2026-03-17T21:47:25.461Z" },
+]
+
+[[package]]
 name = "opencv-python"
 version = "4.11.0.86"
 source = { registry = "https://pypi.org/simple" }
@@ -3206,6 +3224,11 @@ ocr = [
     { name = "huggingface-hub" },
     { name = "rapidocr-onnxruntime" },
 ]
+ocr-directml = [
+    { name = "huggingface-hub" },
+    { name = "onnxruntime-directml" },
+    { name = "rapidocr-onnxruntime" },
+]
 sensevoice = [
     { name = "funasr" },
     { name = "torch" },
@@ -3218,18 +3241,21 @@ requires-dist = [
     { name = "funasr", marker = "extra == 'sensevoice'", specifier = ">=1.3.1" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "huggingface-hub", marker = "extra == 'ocr'", specifier = ">=0.27" },
+    { name = "huggingface-hub", marker = "extra == 'ocr-directml'", specifier = ">=0.27" },
     { name = "librosa", marker = "extra == 'audio-events'", specifier = ">=0.10" },
+    { name = "onnxruntime-directml", marker = "extra == 'ocr-directml'", specifier = ">=1.18" },
     { name = "panns-inference", marker = "extra == 'audio-events'", specifier = ">=0.1.1" },
     { name = "pillow", specifier = ">=10.4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "rapidocr-onnxruntime", marker = "extra == 'ocr'", specifier = ">=1.4.4,<2" },
+    { name = "rapidocr-onnxruntime", marker = "extra == 'ocr-directml'", specifier = ">=1.4.4,<2" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9" },
     { name = "torch", marker = "extra == 'sensevoice'", specifier = ">=2.2" },
     { name = "torchaudio", marker = "extra == 'sensevoice'", specifier = ">=2.2" },
 ]
-provides-extras = ["sensevoice", "advanced-asr", "ocr", "audio-events", "dev"]
+provides-extras = ["sensevoice", "advanced-asr", "ocr", "ocr-directml", "audio-events", "dev"]
 
 [[package]]
 name = "websockets"

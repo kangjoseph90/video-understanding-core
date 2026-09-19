@@ -77,14 +77,18 @@ def _index_config(config: AppConfig, language_hint: str | None) -> dict[str, Any
         "language_hint": language_hint,
         "vad": vars(config.vad),
         "audio_events": vars(config.audio_events),
-        "visual_scan": vars(config.visual_scan),
+        "visual_scan": {
+            key: value
+            for key, value in vars(config.visual_scan).items()
+            if key != "hwaccel"
+        },
         # The resolved settings, not the table they were chosen from: the
         # language picks the recogniser, and a mapping of tuples does not
         # survive a JSON round-trip intact, so comparing it would miss forever.
         "ocr": {
             key: value
             for key, value in vars(config.ocr.for_language(language_hint)).items()
-            if key != "rec_by_language"
+            if key not in {"rec_by_language", "device"}
         },
         "montage_width": config.montage.width,
         "montage_height": config.montage.height,
@@ -284,6 +288,7 @@ def index_video(
                     config=ocr_config,
                     duration_s=duration_s,
                     required_s=required,
+                    hwaccel=config.visual_scan.hwaccel,
                 )
                 cues = text_cues(observations, duration_s=duration_s, config=ocr_config)
                 trace.write(

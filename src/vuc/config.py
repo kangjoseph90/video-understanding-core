@@ -82,6 +82,7 @@ class VisualScanConfig:
     # settle on the first try and pay nothing.
     settle_step_s: float = 0.25
     settle_max_s: float = 1.5
+    hwaccel: str = "none"
 
 
 @dataclass(frozen=True)
@@ -130,6 +131,7 @@ class OCRConfig:
     # The wheel's old Chinese orientation classifier flips clear Hangul
     # captions. Video text is upright unless explicitly configured otherwise.
     use_angle_cls: bool = False
+    device: str = "cpu"
 
     def for_language(self, language: str | None) -> OCRConfig:
         tag = str(language or "").lower().replace("_", "-")
@@ -393,6 +395,7 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             workers=int(visual_scan["workers"]),
             settle_step_s=float(visual_scan.get("settle_step_s", 0.25)),
             settle_max_s=float(visual_scan.get("settle_max_s", 1.5)),
+            hwaccel=str(visual_scan.get("hwaccel", "none")),
         ),
         ocr=OCRConfig(
             enabled=bool(ocr["enabled"]),
@@ -417,6 +420,7 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
             fallback_rec_model_path=_model_path(ocr.get("fallback_rec_model_path"), config_path),
             fallback_rec_keys_path=_model_path(ocr.get("fallback_rec_keys_path"), config_path),
             use_angle_cls=bool(ocr.get("use_angle_cls", False)),
+            device=str(ocr.get("device", "cpu")),
             rec_by_language={
                 str(language).lower(): (
                     _model_path(entry.get("model"), config_path),
@@ -507,12 +511,19 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         raise ValueError("visual_scan sampling intervals must be positive")
     if result.visual_scan.min_interval_s > result.visual_scan.max_interval_s:
         raise ValueError("visual_scan.min_interval_s must not exceed max_interval_s")
+    valid_hwaccels = {
+        "none", "auto", "d3d11va", "dxva2", "cuda", "videotoolbox", "vaapi", "qsv", "amf"
+    }
+    if result.visual_scan.hwaccel not in valid_hwaccels:
+        raise ValueError(f"unsupported visual_scan.hwaccel: {result.visual_scan.hwaccel}")
     if result.audio_events.tagger not in {"panns", "sensevoice", "none"}:
         raise ValueError("audio_events.tagger must be panns, sensevoice, or none")
     if not 0 <= result.audio_events.relative_floor <= 1:
         raise ValueError("audio_events.relative_floor must be between 0 and 1")
     if result.audio_events.window_s <= 0:
         raise ValueError("audio_events.window_s must be positive")
+    if result.ocr.device not in {"cpu", "dml", "directml", "cuda"}:
+        raise ValueError(f"unsupported ocr.device: {result.ocr.device}")
     if result.ocr.scan_fps <= 0 or result.ocr.workers < 1:
         raise ValueError("ocr.scan_fps must be positive and ocr.workers at least 1")
     if min(result.ocr.scan_width, result.ocr.recognition_width) < 32:
