@@ -15,6 +15,7 @@ import math
 import re
 import subprocess
 import sys
+import time
 import unicodedata
 from collections.abc import Sequence
 from copy import copy
@@ -27,7 +28,7 @@ from typing import Protocol
 from PIL import Image, ImageFilter
 
 from vuc.config import OCRConfig
-from vuc.frames import extract_plain_frames
+from vuc.frames import extract_ocr_frames, extract_plain_frames
 from vuc.models import TextCue
 
 VERTICAL_BANDS = ((0.33, "top"), (0.66, "middle"), (1.01, "bottom"))
@@ -475,6 +476,7 @@ def scan_text(
     duration_s: float,
     required_s: Sequence[float] = (),
     hwaccel: str = "none",
+    timings: dict[str, float] | None = None,
 ) -> tuple[list[Observation], int]:
     """Read the video on its own clock, and only where the text moved.
 
@@ -485,33 +487,32 @@ def scan_text(
     for stale in output_dir.glob("text-*.jpg"):
         stale.unlink()
     try:
-        frames = extract_plain_frames(
+        phase_started = time.monotonic()
+        frames, base_frames = extract_ocr_frames(
             video_path,
             output_dir,
-            prefix="text-scan",
-            fps=config.scan_fps,
-            width=config.scan_width,
+            scan_fps=config.scan_fps,
+            scan_width=config.scan_width,
+            recognition_width=config.recognition_width,
             duration_s=duration_s,
-            first_center_s=0.5,
             hwaccel=hwaccel,
         )
-        base_frames = extract_plain_frames(
-            video_path,
-            output_dir,
-            prefix="text-base",
-            fps=min(1.0, config.scan_fps),
-            width=config.recognition_width,
-            duration_s=duration_s,
-            first_center_s=0.5,
-            hwaccel=hwaccel,
-        )
+        if timings is not None:
+            timings["initial_decode_s"] = time.monotonic() - phase_started
+
+        phase_started = time.monotonic()
         base_picked = ocr_candidates(base_frames, config=config, required_s=required_s)
         by_time = {timestamp: i for i, (timestamp, _) in enumerate(frames)}
         picked = [by_time[base_frames[i][0]] for i in base_picked if base_frames[i][0] in by_time]
+        if timings is not None:
+            timings["base_plan_s"] = time.monotonic() - phase_started
         paths = {
             by_time[timestamp]: path for timestamp, path in base_frames if timestamp in by_time
         }
+        phase_started = time.monotonic()
         read = engine.read_many([paths[index] for index in picked])
+        if timings is not None:
+            timings["base_ocr_s"] = time.monotonic() - phase_started
         observations = [
             Observation(frames[i][0], tuple(lines)) for i, lines in zip(picked, read, strict=True)
         ]
@@ -526,6 +527,7 @@ def scan_text(
         )
         from vuc.ocr_tracking import verification_targets
 
+        phase_started = time.monotonic()
         windows = changing_regions(observations, config=config)
         plans = region_candidates(frames, observations, config=config)
         available = sorted(
@@ -536,6 +538,10 @@ def scan_text(
                 if 0 <= j < len(frames) and j not in paths
             }
         )
+        if timings is not None:
+            timings["region_plan_s"] = time.monotonic() - phase_started
+
+        phase_started = time.monotonic()
         extra_frames = extract_plain_frames(
             video_path,
             output_dir,
@@ -547,8 +553,15 @@ def scan_text(
             first_center_s=0.5,
             hwaccel=hwaccel,
         )
+        if timings is not None:
+            timings["extra_decode_s"] = time.monotonic() - phase_started
         paths.update(zip(available, (path for _, path in extra_frames), strict=True))
+        phase_started = time.monotonic()
         observations.extend(read_regions(frames, paths, plans, engine, output_dir))
+        if timings is not None:
+            timings["discovery_ocr_s"] = time.monotonic() - phase_started
+
+        phase_started = time.monotonic()
         needed = verification_targets(observations, duration_s=duration_s, config=config)
         by_time = {timestamp: i for i, (timestamp, _) in enumerate(frames)}
         probes: dict[int, list[Region]] = {}
@@ -561,6 +574,10 @@ def scan_text(
                 for j in (i - 2, i - 1, i + 1, i + 2):
                     if j in paths and j not in base and abs(frames[j][0] - timestamp) <= 0.501:
                         add_region(probes, j, padded_box((line,)), rows=(line,))
+        if timings is not None:
+            timings["verification_plan_s"] = time.monotonic() - phase_started
+
+        phase_started = time.monotonic()
         observations.extend(
             read_regions(
                 frames,
@@ -571,6 +588,8 @@ def scan_text(
                 verification=True,
             )
         )
+        if timings is not None:
+            timings["verification_ocr_s"] = time.monotonic() - phase_started
         observations.sort(key=lambda item: item.timestamp_s)
     finally:
         for path in output_dir.glob("text-*.jpg"):

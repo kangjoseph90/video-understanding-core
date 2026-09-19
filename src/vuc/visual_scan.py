@@ -231,6 +231,61 @@ def _extract_one(
     return output_path
 
 
+def _extract_settle_frames(
+    video_path: Path,
+    output_path: Path,
+    *,
+    start_s: float,
+    config: VisualScanConfig,
+    width: int,
+    duration_s: float,
+) -> list[tuple[float, Path]]:
+    """Fetch every settle probe for one candidate in one ffmpeg process."""
+    count = max(1, math.ceil(config.settle_max_s / config.settle_step_s))
+    count = min(count, math.ceil(max(0.0, duration_s - start_s) / config.settle_step_s))
+    if count < 1:
+        return []
+    pattern = output_path.with_name(f"{output_path.stem}-probe-%02d{output_path.suffix}")
+    command = [
+        require_binary("ffmpeg"),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+    ]
+    if config.hwaccel and config.hwaccel != "none":
+        command.extend(["-hwaccel", config.hwaccel])
+    command.extend(
+        [
+            "-ss",
+            f"{start_s:.3f}",
+            "-i",
+            str(video_path),
+            "-frames:v",
+            str(count),
+            "-vf",
+            (
+                f"fps={1 / config.settle_step_s}:start_time=0:round=up,"
+                f"scale=w='min(iw,{width})':h=-2"
+            ),
+            "-q:v",
+            "3",
+            str(pattern),
+        ]
+    )
+    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    paths = sorted(output_path.parent.glob(f"{output_path.stem}-probe-*{output_path.suffix}"))
+    if completed.returncode != 0:
+        for path in paths:
+            path.unlink(missing_ok=True)
+        return []
+    return [
+        (round(start_s + index * config.settle_step_s, 3), path)
+        for index, path in enumerate(paths)
+        if start_s + index * config.settle_step_s < duration_s
+    ]
+
+
 def is_flat(image: Image.Image) -> bool:
     """Whether the frame is effectively one colour.
 
@@ -325,46 +380,36 @@ def _settled_frame(
     soon as the picture stops changing and has some content in it, so a hard cut
     settles on the first attempt and costs one extra decode to confirm it.
     """
-    moment = candidate.timestamp_s
-    limit = moment + config.settle_max_s
-    previous: tuple[float, str] | None = None
-    first_usable: tuple[float, str] | None = None
-    chosen: tuple[float, str] | None = None
-    on_disk: tuple[float, str] | None = None
-
-    hwaccel_kw = {"hwaccel": config.hwaccel} if config.hwaccel and config.hwaccel != "none" else {}
-    while moment < duration_s:
-        if (
-            _extract_one(
-                video_path,
-                output_path,
-                timestamp_s=moment,
-                width=width,
-                **hwaccel_kw,
-            )
-            is None
-        ):
-            break
-        with Image.open(output_path) as source:
+    previous: tuple[float, str, Path] | None = None
+    first_usable: tuple[float, str, Path] | None = None
+    chosen: tuple[float, str, Path] | None = None
+    on_disk: tuple[float, str, Path] | None = None
+    probes = _extract_settle_frames(
+        video_path,
+        output_path,
+        start_s=candidate.timestamp_s,
+        config=config,
+        width=width,
+        duration_s=duration_s,
+    )
+    for moment, probe_path in probes:
+        with Image.open(probe_path) as source:
             image = source.convert("RGB")
-            flat, digest = is_flat(image), perceptual_hash(image)
-        on_disk = (moment, digest)
+        flat, digest = is_flat(image), perceptual_hash(image)
+        on_disk = (moment, digest, probe_path)
         if flat:
             # A blank is never the answer, and it breaks the run of readings
             # that a settled picture would have to be part of.
             previous = None
         else:
             if first_usable is None:
-                first_usable = (moment, digest)
+                first_usable = (moment, digest, probe_path)
             if previous is not None and hamming(previous[1], digest) <= config.phash_distance:
                 # Two readings in a row agree, so the picture has stopped
                 # changing. The earlier one is as close to the cut as it gets.
                 chosen = previous
                 break
-            previous = (moment, digest)
-        moment = round(moment + config.settle_step_s, 3)
-        if moment >= limit:
-            break
+            previous = (moment, digest, probe_path)
 
     # Give up on the search, not on the frame: coverage outranks tidiness.
     chosen = chosen or first_usable
@@ -373,14 +418,15 @@ def _settled_frame(
     # The search usually ends one step past the frame it settled on. That step
     # is by definition the same picture, so it can stand in for it and save a
     # decode; anything else has to be fetched again.
+    final_probe = on_disk
     if on_disk[0] != chosen[0] and hamming(on_disk[1], chosen[1]) > config.phash_distance:
-        _extract_one(
-            video_path,
-            output_path,
-            timestamp_s=chosen[0],
-            width=width,
-            **hwaccel_kw,
-        )
+        final_probe = chosen
+    final_probe[2].replace(output_path)
+    for _, _, probe_path in (item for item in (previous, first_usable, chosen, on_disk) if item):
+        if probe_path != final_probe[2]:
+            probe_path.unlink(missing_ok=True)
+    for _, probe_path in probes:
+        probe_path.unlink(missing_ok=True)
     return output_path, chosen[0]
 
 

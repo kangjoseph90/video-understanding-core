@@ -40,13 +40,13 @@ visual_scan:
   max_frames: 120
   workers: 4
   # Hardware-accelerated decoding: d3d11va (Windows AMD/Intel), videotoolbox (macOS), cuda (Nvidia), auto, or none
-  hwaccel: none
+  hwaccel: d3d11va
 
 ocr:
   enabled: true
   engine: rapidocr
   # Inference device: cpu, dml (DirectML for Windows AMD/Intel/Nvidia), or cuda
-  device: cpu
+  device: dml
   scan_fps: 4
   scan_width: 448
   recognition_width: 1280

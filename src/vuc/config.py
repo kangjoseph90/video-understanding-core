@@ -511,6 +511,8 @@ def load_config(path: str | Path, *, dotenv_path: str | Path | None = None) -> A
         raise ValueError("visual_scan sampling intervals must be positive")
     if result.visual_scan.min_interval_s > result.visual_scan.max_interval_s:
         raise ValueError("visual_scan.min_interval_s must not exceed max_interval_s")
+    if result.visual_scan.settle_step_s <= 0 or result.visual_scan.settle_max_s <= 0:
+        raise ValueError("visual_scan settle step and maximum must be positive")
     valid_hwaccels = {
         "none", "auto", "d3d11va", "dxva2", "cuda", "videotoolbox", "vaapi", "qsv", "amf"
     }

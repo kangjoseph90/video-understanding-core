@@ -6,7 +6,7 @@ import pytest
 from PIL import Image, ImageDraw, ImageFont
 
 from tests.test_ocr_index import CONFIG, line
-from vuc.frames import extract_plain_frames
+from vuc.frames import extract_ocr_frames, extract_plain_frames
 from vuc.ocr import Observation, ocr_candidates, text_cues
 from vuc.ocr_tracking import verification_targets
 
@@ -294,6 +294,58 @@ def test_dense_clock_preserves_the_coarse_sample_centres(tmp_path):
     for timestamp, path in coarse:
         matching = next(p for t, p in dense if t == timestamp)
         assert Image.open(path).tobytes() == Image.open(matching).tobytes()
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
+def test_joint_ocr_decode_preserves_both_independent_outputs(tmp_path):
+    video = tmp_path / "source.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=128x72:rate=20:duration=2",
+            "-y",
+            str(video),
+        ],
+        check=True,
+    )
+    expected_dense = extract_plain_frames(
+        video,
+        tmp_path / "expected-dense",
+        prefix="f",
+        fps=4,
+        width=96,
+        duration_s=2,
+        first_center_s=0.5,
+    )
+    expected_base = extract_plain_frames(
+        video,
+        tmp_path / "expected-base",
+        prefix="f",
+        fps=1,
+        width=128,
+        duration_s=2,
+        first_center_s=0.5,
+    )
+    dense, base = extract_ocr_frames(
+        video,
+        tmp_path / "joint",
+        scan_fps=4,
+        scan_width=96,
+        recognition_width=128,
+        duration_s=2,
+    )
+    assert [timestamp for timestamp, _ in dense] == [timestamp for timestamp, _ in expected_dense]
+    assert [timestamp for timestamp, _ in base] == [timestamp for timestamp, _ in expected_base]
+    for actual, expected in zip(dense, expected_dense, strict=True):
+        assert Image.open(actual[1]).tobytes() == Image.open(expected[1]).tobytes()
+    for actual, expected in zip(base, expected_base, strict=True):
+        assert Image.open(actual[1]).tobytes() == Image.open(expected[1]).tobytes()
 
 
 def test_verification_targets_only_the_unsupported_row_in_a_frame():

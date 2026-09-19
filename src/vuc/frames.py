@@ -158,6 +158,84 @@ def extract_plain_frames(
     ]
 
 
+def extract_ocr_frames(
+    video_path: Path,
+    output_dir: Path,
+    *,
+    scan_fps: float,
+    scan_width: int,
+    recognition_width: int,
+    duration_s: float,
+    hwaccel: str = "none",
+) -> tuple[list[tuple[float, Path]], list[tuple[float, Path]]]:
+    """Decode once into the dense OCR scan and its coarse recognition clock.
+
+    The two clocks used to be separate ffmpeg processes, so every frame in the
+    video was decoded twice before OCR began.  Splitting the decoded stream
+    preserves each clock's filters and resolution while sharing demux/decode.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    base_fps = min(1.0, scan_fps)
+
+    def branch(label: str, fps: float, width: int, output: str) -> str:
+        shift = 0.5 - 0.5 / fps
+        return (
+            f"[{label}]setpts=PTS-({shift})/TB,fps={fps}:start_time=0,"
+            f"scale=w='min(iw,{width})':h=-2[{output}]"
+        )
+
+    filters = ";".join(
+        (
+            "[0:v]split=2[scan_in][base_in]",
+            branch("scan_in", scan_fps, scan_width, "scan"),
+            branch("base_in", base_fps, recognition_width, "base"),
+        )
+    )
+    command = [
+        require_binary("ffmpeg"),
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+    ]
+    if hwaccel and hwaccel != "none":
+        command.extend(["-hwaccel", hwaccel])
+    command.extend(
+        [
+            "-i",
+            str(video_path),
+            "-filter_complex",
+            filters,
+            "-map",
+            "[scan]",
+            "-fps_mode",
+            "vfr",
+            "-q:v",
+            "3",
+            str(output_dir / "text-scan-%06d.jpg"),
+            "-map",
+            "[base]",
+            "-fps_mode",
+            "vfr",
+            "-q:v",
+            "3",
+            str(output_dir / "text-base-%06d.jpg"),
+        ]
+    )
+    completed = subprocess.run(command, check=False, capture_output=True, text=True)
+    if completed.returncode != 0:
+        raise MediaError(f"OCR frame extraction failed: {completed.stderr.strip()}")
+
+    def rows(prefix: str, fps: float) -> list[tuple[float, Path]]:
+        paths = sorted(output_dir.glob(f"{prefix}-*.jpg"))
+        return [
+            (min(round(index / fps + 0.5, 3), duration_s), path)
+            for index, path in enumerate(paths)
+        ]
+
+    return rows("text-scan", scan_fps), rows("text-base", base_fps)
+
+
 def montage_cell_size(width: int, height: int, n: int) -> tuple[int, int]:
     if n < 1:
         raise ValueError("montage grid size must be positive")

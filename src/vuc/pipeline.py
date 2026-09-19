@@ -271,6 +271,7 @@ def index_video(
         started = time.monotonic()
         ocr_config = config.ocr.for_language(hint_language)
         engine = ocr_engine or _build_ocr_engine(config, trace, language=hint_language)
+        phase_timings = {"engine_start_s": time.monotonic() - started}
         counts["ocr_engine"] = None if engine is None else engine.name
         cues: list[TextCue] = []
         try:
@@ -289,8 +290,11 @@ def index_video(
                     duration_s=duration_s,
                     required_s=required,
                     hwaccel=config.visual_scan.hwaccel,
+                    timings=phase_timings,
                 )
+                tracking_started = time.monotonic()
                 cues = text_cues(observations, duration_s=duration_s, config=ocr_config)
+                phase_timings["tracking_s"] = time.monotonic() - tracking_started
                 trace.write(
                     step="index",
                     event="ocr",
@@ -307,6 +311,10 @@ def index_video(
                         "crop_reads": sum(len(item.regions) for item in observations),
                         "with_text": sum(1 for item in observations if item.lines),
                         "cues": len(cues),
+                        "phase_ms": {
+                            key: round(seconds * 1000)
+                            for key, seconds in phase_timings.items()
+                        },
                     },
                     duration_ms=round((time.monotonic() - started) * 1000),
                 )

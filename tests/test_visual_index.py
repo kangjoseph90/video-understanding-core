@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import math
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from vuc.config import VisualScanConfig
@@ -9,6 +13,8 @@ from vuc.visual_scan import (
     Candidate,
     ScanFrame,
     ShotBoundary,
+    _extract_one,
+    _extract_settle_frames,
     _settled_frame,
     dedupe,
     edge_density,
@@ -197,26 +203,75 @@ def test_a_picture_is_content_however_dim() -> None:
     assert not is_flat(dim)
 
 
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg required")
+def test_batched_settle_decode_matches_individual_seeks(tmp_path: Path) -> None:
+    video = tmp_path / "source.mp4"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=128x72:rate=20:duration=2",
+            "-y",
+            str(video),
+        ],
+        check=True,
+    )
+    config = make_config(settle_step_s=0.25, settle_max_s=1.0)
+    batch = _extract_settle_frames(
+        video,
+        tmp_path / "batch.jpg",
+        start_s=0.25,
+        config=config,
+        width=96,
+        duration_s=2,
+    )
+    assert [timestamp for timestamp, _ in batch] == [0.25, 0.5, 0.75, 1.0]
+    for index, (timestamp, actual_path) in enumerate(batch):
+        expected_path = tmp_path / f"single-{index}.jpg"
+        assert _extract_one(
+            video, expected_path, timestamp_s=timestamp, width=96, hwaccel="none"
+        )
+        with Image.open(actual_path) as actual, Image.open(expected_path) as expected:
+            assert perceptual_hash(actual) == perceptual_hash(expected)
+            assert is_flat(actual) == is_flat(expected)
+
+
 class _Reel:
     """A stand-in video: a timestamp maps to the picture showing at it."""
 
     def __init__(self, pictures: dict[float, Image.Image]) -> None:
         self.pictures = pictures
         self.asked: list[float] = []
+        self.batches = 0
 
-    def extract(
+    def extract_settle_frames(
         self,
         _video: Path,
         output: Path,
         *,
-        timestamp_s: float,
+        start_s: float,
+        config: VisualScanConfig,
         width: int,
-        hwaccel: str = "none",
-    ) -> Path | None:
-        self.asked.append(timestamp_s)
-        nearest = min(self.pictures, key=lambda moment: abs(moment - timestamp_s))
-        self.pictures[nearest].save(output)
-        return output
+        duration_s: float,
+    ) -> list[tuple[float, Path]]:
+        del width
+        self.batches += 1
+        result = []
+        for index in range(math.ceil(config.settle_max_s / config.settle_step_s)):
+            timestamp_s = round(start_s + index * config.settle_step_s, 3)
+            if timestamp_s >= duration_s:
+                break
+            self.asked.append(timestamp_s)
+            nearest = min(self.pictures, key=lambda moment: abs(moment - timestamp_s))
+            path = output.with_name(f"{output.stem}-probe-{index:02d}{output.suffix}")
+            self.pictures[nearest].save(path)
+            result.append((timestamp_s, path))
+        return result
 
 
 def _noise(seed: int) -> Image.Image:
@@ -236,7 +291,7 @@ def _noise(seed: int) -> Image.Image:
 
 
 def _settle(monkeypatch, reel: _Reel, tmp_path: Path, **overrides: float | int):
-    monkeypatch.setattr("vuc.visual_scan._extract_one", reel.extract)
+    monkeypatch.setattr("vuc.visual_scan._extract_settle_frames", reel.extract_settle_frames)
     return _settled_frame(
         Path("video.mp4"),
         tmp_path / "scan.jpg",
@@ -255,9 +310,8 @@ def test_a_hard_cut_is_taken_where_it_was_asked_for(monkeypatch, tmp_path: Path)
     taken = _settle(monkeypatch, reel, tmp_path)
 
     assert taken is not None and taken[1] == 10.0
-    # One decode to take it and one to confirm it has settled; no third, because
-    # the confirming frame is the same picture and can stay on disk.
-    assert reel.asked == [10.0, 10.25]
+    assert reel.batches == 1
+    assert reel.asked[:2] == [10.0, 10.25]
 
 
 def test_a_dissolve_is_followed_until_the_picture_stops_changing(
